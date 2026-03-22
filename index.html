@@ -2,129 +2,89 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Gestion Patrouilles</title>
+<title>Centre Opérationnel Elite</title>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <style>
-body {
-  font-family: Arial;
-  background:#0f172a;
-  color:white;
-  margin:20px;
-  font-size:16px;
-}
+body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
 
-h1 { font-size:28px; }
-h2 { font-size:24px; }
-h3 { font-size:20px; }
+input, select, button { padding:6px; margin-top:5px; width:100%; }
 
-input, select {
-  width:100%;
-  padding:6px;
-  margin-top:5px;
-  font-size:14px;
-}
+table { width:100%; background:white; color:black; border-collapse:collapse; margin-top:20px; }
+td, th { border:1px solid #ccc; padding:8px; text-align:center; }
 
-button {
-  padding:8px;
-  margin-top:10px;
-  cursor:pointer;
-  font-size:14px;
-}
-
-table {
-  width:100%;
-  background:white;
-  color:black;
-  border-collapse:collapse;
-  margin-top:20px;
-  font-size:15px;
-}
-
-th, td {
-  border:1px solid #ccc;
-  padding:8px;
-  text-align:center;
-}
-
-.panic {
-  animation:blink 1s infinite;
-  background:red !important;
-  color:white;
-}
-
+.panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
 
 #notifications {
   position: fixed;
   bottom: 20px;
   right: 20px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
 .toast {
   background:#1e293b;
   padding:10px;
-  margin-top:5px;
   border-left:5px solid green;
+  min-width:250px;
 }
 
-#globalNotif {
-  position:fixed;
-  top:20px;
-  left:50%;
-  transform:translateX(-50%);
-  background:red;
-  color:white;
-  padding:20px;
-  font-size:20px;
-  display:none;
-  z-index:9999;
-}
+.toast.danger { border-left-color:red; }
+.toast.warning { border-left-color:orange; }
 </style>
 </head>
 
 <body>
 
-<h2>Connexion</h2>
+<h2>🚓 Centre Opérationnel Elite</h2>
 
 <div id="auth">
 <input id="username" placeholder="Identifiant">
 <input id="password" type="password" placeholder="Mot de passe">
 <button onclick="register()">Créer compte</button>
 <button onclick="login()">Connexion</button>
-<p id="error" style="color:red;"></p>
+<p id="error"></p>
 </div>
 
 <div id="app" style="display:none;">
 
-<button onclick="logout()">Déconnexion</button>
-
+<div style="display:flex;justify-content:space-between;">
+<div id="tnDisplay">TN: Aucun</div>
+<div>
 <button onclick="setTN()">Se définir TN</button>
 <button onclick="removeTN()">Retirer TN</button>
+<button onclick="logout()">Déconnexion</button>
+</div>
+</div>
+
+<hr>
 
 <h3>Créer patrouille</h3>
 
-<label>Effectifs (CTRL)</label>
+<input id="searchEffectifs" placeholder="Rechercher effectif" oninput="filterUsers()">
+
+<label>Effectifs (CTRL multi)</label>
 <select id="effectifs" multiple></select>
 
 <label>Arme longue</label>
-<select id="arme" onchange="toggleArme()">
+<select id="arme">
 <option>Non</option>
 <option>Oui</option>
 </select>
-
-<select id="armeEffectif" style="display:none;"></select>
+<input id="armeDetail" placeholder="Ex: HK UMP9">
 
 <label>OPJ</label>
-<select id="opj" onchange="toggleOPJ()">
+<select id="opj">
 <option>Non</option>
 <option>Oui</option>
 </select>
-
-<select id="opjList" multiple style="display:none;"></select>
+<input id="opjDetail" placeholder="Nom Prénom">
 
 <input id="indicatif" placeholder="Indicatif">
 <input id="vehicule" placeholder="Véhicule">
@@ -135,9 +95,11 @@ th, td {
 <option>Indisponible</option>
 <option>Sur intervention</option>
 <option>En procédure</option>
+<option>En contrôle</option>
+<option>En poste</option>
 </select>
 
-<button onclick="addPatrol()">Créer patrouille</button>
+<button onclick="addPatrol()">Créer</button>
 
 <h3>Patrouilles</h3>
 
@@ -154,24 +116,12 @@ th, td {
 <tbody id="list"></tbody>
 </table>
 
-<button onclick="panic()">🚨 PANIC</button>
-<button onclick="dispatch()">📢 DISPATCH</button>
-
-<!-- ADMIN -->
-<div id="adminPanel" style="display:none; background:#1e293b; padding:10px; margin-top:20px;">
-<h3>👑 Admin Panel</h3>
-
-<ul id="userList"></ul>
-
-<input id="adminMessage" placeholder="Message global">
-<button onclick="sendGlobalMessage()">Envoyer message</button>
-
-</div>
+<button onclick="panic()" style="background:red;color:white;">🚨 PANIC</button>
+<button onclick="dispatch()" style="background:orange;color:white;">📢 DISPATCH</button>
 
 </div>
 
 <div id="notifications"></div>
-<div id="globalNotif"></div>
 
 <script>
 
@@ -187,149 +137,115 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
-const authFirebase = firebase.auth();
+const auth = firebase.auth();
 const db = firebase.database();
 
 let currentUser="";
 let isAdmin=false;
-let presenceRef=null;
 
-// NOTIF
-function notify(msg){
+/* NOTIF */
+function notify(msg,type="info"){
   let div=document.createElement("div");
-  div.className="toast";
+  div.className="toast "+type;
   div.innerText=msg;
   notifications.appendChild(div);
   setTimeout(()=>div.remove(),4000);
 }
 
-// EMAIL
+/* AUTH EMAIL AUTO */
 function toEmail(u){
-  return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@patrol.fr";
+  return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@app.fr";
 }
 
-// REGISTER
+/* REGISTER */
 function register(){
-  authFirebase.createUserWithEmailAndPassword(
-    toEmail(username.value),
-    password.value
-  ).then(()=>{
-    db.ref("users/"+username.value).set(true);
+  auth.createUserWithEmailAndPassword(toEmail(username.value), password.value)
+  .then(()=>{
+    db.ref("users/"+username.value).set({online:true});
     notify("Compte créé");
   }).catch(e=>error.innerText=e.message);
 }
 
-// LOGIN
+/* LOGIN */
 function login(){
-  authFirebase.signInWithEmailAndPassword(
-    toEmail(username.value),
-    password.value
-  ).then(()=>{
-    if(username.value==="admin" && password.value==="admin1"){
-      isAdmin=true;
-    }
-  }).catch(e=>error.innerText=e.message);
+  if(username.value==="admin" && password.value==="admin1"){
+    isAdmin=true;
+  }
+  auth.signInWithEmailAndPassword(toEmail(username.value), password.value)
+  .catch(e=>error.innerText=e.message);
 }
 
-// LOGOUT
+/* LOGOUT */
 function logout(){
-  authFirebase.signOut().then(()=>location.reload());
+  db.ref("users/"+currentUser).update({online:false});
+  auth.signOut();
+  location.reload();
 }
 
-// AUTH STATE
-authFirebase.onAuthStateChanged(user=>{
+/* AUTH STATE */
+auth.onAuthStateChanged(user=>{
   if(user){
     currentUser=username.value;
 
-    if(currentUser==="admin") isAdmin=true;
-
-    presenceRef=db.ref("presence/"+currentUser);
-    presenceRef.set(true);
-    presenceRef.onDisconnect().remove();
+    db.ref("users/"+currentUser).update({online:true});
 
     auth.style.display="none";
     app.style.display="block";
 
-    if(isAdmin) adminPanel.style.display="block";
-
     loadUsers();
-    loadAdminUsers();
     listenPatrols();
-    listenGlobalNotif();
+    listenTN();
   }
 });
 
-// USERS ONLINE
+/* USERS ONLINE ONLY */
 function loadUsers(){
-  db.ref("presence").on("value", snap=>{
+  db.ref("users").on("value", snap=>{
     let data=snap.val()||{};
 
     effectifs.innerHTML="";
-    armeEffectif.innerHTML="";
-    opjList.innerHTML="";
 
-    Object.keys(data).forEach(u=>{
-      let o=document.createElement("option");
-      o.value=u;o.textContent=u;
-
-      effectifs.appendChild(o);
-      armeEffectif.appendChild(o.cloneNode(true));
-      opjList.appendChild(o.cloneNode(true));
+    Object.entries(data).forEach(([name,u])=>{
+      if(u.online){
+        let opt=document.createElement("option");
+        opt.value=name;
+        opt.textContent=name;
+        effectifs.appendChild(opt);
+      }
     });
   });
 }
 
-// ADMIN USERS
-function loadAdminUsers(){
-  db.ref("users").on("value", snap=>{
-    let data=snap.val()||{};
-    userList.innerHTML="";
-
-    Object.keys(data).forEach(u=>{
-      let li=document.createElement("li");
-      li.innerHTML=`${u} <button onclick="deleteUser('${u}')">Supprimer</button>`;
-      userList.appendChild(li);
-    });
+/* FILTER */
+function filterUsers(){
+  let v=searchEffectifs.value.toLowerCase();
+  Array.from(effectifs.options).forEach(o=>{
+    o.style.display=o.textContent.toLowerCase().includes(v)?"":"none";
   });
 }
 
-function deleteUser(u){
-  if(!isAdmin) return;
-
-  db.ref("users/"+u).remove();
-  db.ref("presence/"+u).remove();
-
-  notify("Utilisateur supprimé");
-}
-
-// TOGGLES
-function toggleArme(){
-  armeEffectif.style.display = arme.value==="Oui"?"block":"none";
-}
-function toggleOPJ(){
-  opjList.style.display = opj.value==="Oui"?"block":"none";
-}
-
-// ADD PATROL
+/* CREATE PATROL */
 function addPatrol(){
+
   let eff=[...effectifs.selectedOptions].map(o=>o.value);
 
   db.ref("patrols").push({
-    indicatif: indicatif.value||"Non défini",
-    vehicule: vehicule.value||"Non défini",
-    effectifs: eff,
-    arme: arme.value,
-    armeEffectif: armeEffectif.value||"",
-    opjList: [...opjList.selectedOptions].map(o=>o.value),
-    mission: mission.value||"",
-    statut: statut.value||"Disponible",
+    indicatif,
+    vehicule,
+    effectifs:eff,
+    arme:arme.value,
+    armeDetail:armeDetail.value,
+    opj:opj.value,
+    opjDetail:opjDetail.value,
+    mission:mission.value,
+    statut:statut.value,
     panic:false
   });
 
   notify("Patrouille créée");
 }
 
-// PATROLS
+/* LIST */
 let patrols={};
 
 function listenPatrols(){
@@ -339,7 +255,7 @@ function listenPatrols(){
   });
 }
 
-// RENDER
+/* RENDER */
 function render(){
   list.innerHTML="";
 
@@ -348,17 +264,24 @@ function render(){
     let tr=document.createElement("tr");
     if(p.panic) tr.classList.add("panic");
 
+    let color="green";
+    if(p.statut==="Indisponible") color="red";
+    if(p.statut==="Sur intervention") color="orange";
+    if(p.statut==="En procédure") color="blue";
+
     tr.innerHTML=`
-<td>${p.indicatif}</td>
-<td>${p.vehicule}</td>
+<td>${p.indicatif||""}</td>
+<td>${p.vehicule||""}</td>
 <td>${(p.effectifs||[]).join(", ")}</td>
 
 <td>
-<select onchange="updateStatus('${id}',this.value)">
+<select onchange="updateStatus('${id}',this.value)" style="background:${color};color:white;">
 <option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
 <option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
 <option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
 <option ${p.statut==="En procédure"?"selected":""}>En procédure</option>
+<option ${p.statut==="En contrôle"?"selected":""}>En contrôle</option>
+<option ${p.statut==="En poste"?"selected":""}>En poste</option>
 </select>
 </td>
 
@@ -367,126 +290,101 @@ function render(){
 <button onclick="deletePatrol('${id}')">Supprimer</button>
 </td>
 `;
-
     list.appendChild(tr);
   });
 }
 
-// STATUS
 function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
+  notify("Statut modifié","warning");
 }
 
-// EDIT
+/* EDIT */
 function editPatrol(id){
   let p=patrols[id];
-
   let indicatif=prompt("Indicatif",p.indicatif);
   let vehicule=prompt("Véhicule",p.vehicule);
-  let mission=prompt("Mission",p.mission);
-  let statut=prompt("Statut",p.statut);
 
-  db.ref("patrols/"+id).update({indicatif,vehicule,mission,statut});
+  db.ref("patrols/"+id).update({indicatif,vehicule});
 }
 
-// DELETE
+/* DELETE */
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// PANIC (2 tons)
+/* PANIC */
 function panic(){
 
-  let ctx=new (window.AudioContext || window.webkitAudioContext)();
+  Object.entries(patrols).forEach(([id,p])=>{
+    if((p.effectifs||[]).includes(currentUser)){
+      db.ref("patrols/"+id).update({panic:true});
+      playAlarm();
+      setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
+    }
+  });
 
-  let osc1=ctx.createOscillator();
-  let osc2=ctx.createOscillator();
-  let gain=ctx.createGain();
+  notify("PANIC déclenché","danger");
+}
 
-  gain.gain.value=0.2;
+/* SOUND PANIC (2.5s double tone) */
+function playAlarm(){
+  let ctx=new AudioContext();
+  let o1=ctx.createOscillator();
+  let o2=ctx.createOscillator();
+  let g=ctx.createGain();
 
-  osc1.connect(gain);
-  osc2.connect(gain);
-  gain.connect(ctx.destination);
+  g.gain.value=0.2;
+  o1.connect(g);
+  o2.connect(g);
+  g.connect(ctx.destination);
 
-  osc1.start();
-  osc2.start();
+  o1.start(); o2.start();
 
-  let duration=2500;
   let start=ctx.currentTime;
+  let dur=2.5;
 
   function loop(){
     let t=ctx.currentTime-start;
-
-    if(t<duration/2){
-      osc1.frequency.setValueAtTime(700,ctx.currentTime);
-      osc2.frequency.setValueAtTime(1100,ctx.currentTime);
-    } else {
-      osc1.frequency.setValueAtTime(1100,ctx.currentTime);
-      osc2.frequency.setValueAtTime(700,ctx.currentTime);
+    if(t<dur/2){
+      o1.frequency.value=700;
+      o2.frequency.value=1200;
+    }else{
+      o1.frequency.value=1200;
+      o2.frequency.value=700;
     }
-
-    if(t<duration){
-      requestAnimationFrame(loop);
-    }
+    if(t<dur) requestAnimationFrame(loop);
   }
-
   loop();
 
-  setTimeout(()=>{
-    osc1.stop();
-    osc2.stop();
-  },duration);
-
-  notify("🚨 PANIC");
+  setTimeout(()=>{o1.stop();o2.stop();},2500);
 }
 
-// DISPATCH
+/* DISPATCH */
 function dispatch(){
   let ctx=new AudioContext();
-  let osc=ctx.createOscillator();
-  osc.frequency.value=900;
-  osc.connect(ctx.destination);
-  osc.start();
-  setTimeout(()=>osc.stop(),300);
-
-  notify("📢 DISPATCH");
+  let o=ctx.createOscillator();
+  o.frequency.value=900;
+  o.connect(ctx.destination);
+  o.start();
+  setTimeout(()=>o.stop(),400);
+  notify("Dispatch","warning");
 }
 
-// TN
+/* TN */
 function setTN(){
   db.ref("tn").set(currentUser);
-  notify("Vous êtes TN");
 }
 
 function removeTN(){
   db.ref("tn").remove();
-  notify("TN retiré");
 }
 
-// GLOBAL NOTIF
-function sendGlobalMessage(){
-  if(!isAdmin) return;
-
-  db.ref("globalNotif").set({
-    message:adminMessage.value,
-    time:Date.now()
-  });
-
-  notify("Message envoyé");
-}
-
-function listenGlobalNotif(){
-  db.ref("globalNotif").on("value", snap=>{
-    let d=snap.val();
-    if(d){
-      globalNotif.innerText=d.message;
-      globalNotif.style.display="block";
-      setTimeout(()=>globalNotif.style.display="none",5000);
-    }
+function listenTN(){
+  db.ref("tn").on("value",snap=>{
+    tnDisplay.innerText="TN: "+(snap.val()||"Aucun");
   });
 }
-
 </script>
 
 </body>
