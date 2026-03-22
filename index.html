@@ -1,130 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Centre Opérationnel Elite</title>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-
-<style>
-body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
-
-input, select, button { padding:6px; margin-top:5px; width:100%; }
-
-table { width:100%; background:white; color:black; border-collapse:collapse; margin-top:20px; }
-td, th { border:1px solid #ccc; padding:8px; text-align:center; }
-
-.panic { animation:blink 1s infinite; background:red !important; color:white; }
-@keyframes blink { 50% { opacity:0.3; } }
-
-#notifications {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-.toast {
-  background:#1e293b;
-  padding:10px;
-  border-left:5px solid green;
-  min-width:250px;
-}
-
-.toast.danger { border-left-color:red; }
-.toast.warning { border-left-color:orange; }
-</style>
-</head>
-
-<body>
-
-<h2>🚓 Centre Opérationnel Elite</h2>
-
-<div id="auth">
-<input id="username" placeholder="Identifiant">
-<input id="password" type="password" placeholder="Mot de passe">
-<button onclick="register()">Créer compte</button>
-<button onclick="login()">Connexion</button>
-<p id="error"></p>
-</div>
-
-<div id="app" style="display:none;">
-
-<div style="display:flex;justify-content:space-between;">
-<div id="tnDisplay">TN: Aucun</div>
-<div>
-<button onclick="setTN()">Se définir TN</button>
-<button onclick="removeTN()">Retirer TN</button>
-<button onclick="logout()">Déconnexion</button>
-</div>
-</div>
-
-<hr>
-
-<h3>Créer patrouille</h3>
-
-<input id="searchEffectifs" placeholder="Rechercher effectif" oninput="filterUsers()">
-
-<label>Effectifs (CTRL multi)</label>
-<select id="effectifs" multiple></select>
-
-<label>Arme longue</label>
-<select id="arme">
-<option>Non</option>
-<option>Oui</option>
-</select>
-<input id="armeDetail" placeholder="Ex: HK UMP9">
-
-<label>OPJ</label>
-<select id="opj">
-<option>Non</option>
-<option>Oui</option>
-</select>
-<input id="opjDetail" placeholder="Nom Prénom">
-
-<input id="indicatif" placeholder="Indicatif">
-<input id="vehicule" placeholder="Véhicule">
-<input id="mission" placeholder="Mission">
-
-<select id="statut">
-<option>Disponible</option>
-<option>Indisponible</option>
-<option>Sur intervention</option>
-<option>En procédure</option>
-<option>En contrôle</option>
-<option>En poste</option>
-</select>
-
-<button onclick="addPatrol()">Créer</button>
-
-<h3>Patrouilles</h3>
-
-<table>
-<thead>
-<tr>
-<th>Indicatif</th>
-<th>Véhicule</th>
-<th>Effectifs</th>
-<th>Statut</th>
-<th>Actions</th>
-</tr>
-</thead>
-<tbody id="list"></tbody>
-</table>
-
-<button onclick="panic()" style="background:red;color:white;">🚨 PANIC</button>
-<button onclick="dispatch()" style="background:orange;color:white;">📢 DISPATCH</button>
-
-</div>
-
-<div id="notifications"></div>
-
 <script>
-
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -140,134 +14,148 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
-let currentUser="";
-let isAdmin=false;
+/* ===================== */
+/* ELEMENTS HTML         */
+/* ===================== */
+const authDiv = document.getElementById("auth");
+const appDiv = document.getElementById("app");
+const errorDiv = document.getElementById("error");
 
-/* NOTIF */
-function notify(msg,type="info"){
-  let div=document.createElement("div");
-  div.className="toast "+type;
-  div.innerText=msg;
-  notifications.appendChild(div);
-  setTimeout(()=>div.remove(),4000);
-}
-
-/* AUTH EMAIL AUTO */
+/* ===================== */
+/* UTIL EMAIL            */
+/* ===================== */
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@app.fr";
 }
 
-/* REGISTER */
+/* ===================== */
+/* NOTIFICATIONS         */
+/* ===================== */
+function notify(msg){
+  const div=document.createElement("div");
+  div.className="toast";
+  div.innerText=msg;
+  document.getElementById("notifications").appendChild(div);
+  setTimeout(()=>div.remove(),4000);
+}
+
+/* ===================== */
+/* REGISTER              */
+/* ===================== */
 function register(){
-  auth.createUserWithEmailAndPassword(toEmail(username.value), password.value)
+  const email = toEmail(username.value);
+  const pass = password.value;
+
+  auth.createUserWithEmailAndPassword(email, pass)
   .then(()=>{
     db.ref("users/"+username.value).set({online:true});
     notify("Compte créé");
-  }).catch(e=>error.innerText=e.message);
+  })
+  .catch(e=>{
+    console.error(e);
+    errorDiv.innerText = e.message;
+  });
 }
 
-/* LOGIN */
+/* ===================== */
+/* LOGIN                 */
+/* ===================== */
 function login(){
-  if(username.value==="admin" && password.value==="admin1"){
-    isAdmin=true;
-  }
-  auth.signInWithEmailAndPassword(toEmail(username.value), password.value)
-  .catch(e=>error.innerText=e.message);
+  const email = toEmail(username.value);
+  const pass = password.value;
+
+  errorDiv.innerText = "";
+
+  auth.signInWithEmailAndPassword(email, pass)
+  .then(()=>{
+    console.log("Connexion réussie");
+  })
+  .catch(e=>{
+    console.error(e);
+    errorDiv.innerText = e.message;
+  });
 }
 
-/* LOGOUT */
-function logout(){
-  db.ref("users/"+currentUser).update({online:false});
-  auth.signOut();
-  location.reload();
-}
-
-/* AUTH STATE */
+/* ===================== */
+/* AUTH STATE            */
+/* ===================== */
 auth.onAuthStateChanged(user=>{
   if(user){
-    currentUser=username.value;
+    console.log("User connecté:", user.email);
 
-    db.ref("users/"+currentUser).update({online:true});
+    authDiv.style.display="none";
+    appDiv.style.display="block";
 
-    auth.style.display="none";
-    app.style.display="block";
+    const name = username.value;
+    db.ref("users/"+name).update({online:true});
+
+    currentUser = name;
 
     loadUsers();
     listenPatrols();
     listenTN();
+  } else {
+    authDiv.style.display="block";
+    appDiv.style.display="none";
   }
 });
 
-/* USERS ONLINE ONLY */
+/* ===================== */
+/* LOGOUT                */
+/* ===================== */
+function logout(){
+  db.ref("users/"+currentUser).update({online:false});
+  auth.signOut();
+}
+
+/* ===================== */
+/* USERS ONLINE          */
+/* ===================== */
 function loadUsers(){
   db.ref("users").on("value", snap=>{
-    let data=snap.val()||{};
+    const data = snap.val() || {};
+    const select = document.getElementById("effectifs");
 
-    effectifs.innerHTML="";
+    select.innerHTML="";
 
     Object.entries(data).forEach(([name,u])=>{
       if(u.online){
         let opt=document.createElement("option");
         opt.value=name;
         opt.textContent=name;
-        effectifs.appendChild(opt);
+        select.appendChild(opt);
       }
     });
   });
 }
 
-/* FILTER */
-function filterUsers(){
-  let v=searchEffectifs.value.toLowerCase();
-  Array.from(effectifs.options).forEach(o=>{
-    o.style.display=o.textContent.toLowerCase().includes(v)?"":"none";
-  });
-}
-
-/* CREATE PATROL */
-function addPatrol(){
-
-  let eff=[...effectifs.selectedOptions].map(o=>o.value);
-
-  db.ref("patrols").push({
-    indicatif,
-    vehicule,
-    effectifs:eff,
-    arme:arme.value,
-    armeDetail:armeDetail.value,
-    opj:opj.value,
-    opjDetail:opjDetail.value,
-    mission:mission.value,
-    statut:statut.value,
-    panic:false
-  });
-
-  notify("Patrouille créée");
-}
-
-/* LIST */
+/* ===================== */
+/* PATROUILLES           */
+/* ===================== */
 let patrols={};
 
 function listenPatrols(){
   db.ref("patrols").on("value", snap=>{
-    patrols=snap.val()||{};
+    patrols = snap.val() || {};
     render();
   });
 }
 
-/* RENDER */
 function render(){
+  const list=document.getElementById("list");
   list.innerHTML="";
 
   Object.entries(patrols).forEach(([id,p])=>{
 
     let tr=document.createElement("tr");
-    if(p.panic) tr.classList.add("panic");
+
+    if(p.panic){
+      tr.classList.add("panic");
+    }
 
     let color="green";
     if(p.statut==="Indisponible") color="red";
     if(p.statut==="Sur intervention") color="orange";
-    if(p.statut==="En procédure") color="blue";
 
     tr.innerHTML=`
 <td>${p.indicatif||""}</td>
@@ -280,54 +168,83 @@ function render(){
 <option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
 <option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
 <option ${p.statut==="En procédure"?"selected":""}>En procédure</option>
-<option ${p.statut==="En contrôle"?"selected":""}>En contrôle</option>
-<option ${p.statut==="En poste"?"selected":""}>En poste</option>
 </select>
 </td>
 
 <td>
-<button onclick="editPatrol('${id}')">Modifier</button>
 <button onclick="deletePatrol('${id}')">Supprimer</button>
 </td>
 `;
+
     list.appendChild(tr);
   });
 }
 
 function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
-  notify("Statut modifié","warning");
 }
 
-/* EDIT */
-function editPatrol(id){
-  let p=patrols[id];
-  let indicatif=prompt("Indicatif",p.indicatif);
-  let vehicule=prompt("Véhicule",p.vehicule);
+/* ===================== */
+/* ADD PATROL            */
+/* ===================== */
+function addPatrol(){
 
-  db.ref("patrols/"+id).update({indicatif,vehicule});
+  let eff=[...effectifs.selectedOptions].map(o=>o.value);
+
+  db.ref("patrols").push({
+    indicatif: indicatif.value,
+    vehicule: vehicule.value,
+    effectifs: eff,
+    statut: statut.value,
+    panic:false
+  });
+
+  notify("Patrouille créée");
 }
 
-/* DELETE */
+/* ===================== */
+/* DELETE                */
+/* ===================== */
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-/* PANIC */
-function panic(){
+/* ===================== */
+/* TN                    */
+/* ===================== */
+function setTN(){
+  db.ref("tn").set(currentUser);
+}
 
+function removeTN(){
+  db.ref("tn").remove();
+}
+
+function listenTN(){
+  db.ref("tn").on("value", snap=>{
+    tnDisplay.innerText="TN: "+(snap.val()||"Aucun");
+  });
+}
+
+/* ===================== */
+/* PANIC SOUND           */
+/* ===================== */
+function panic(){
   Object.entries(patrols).forEach(([id,p])=>{
     if((p.effectifs||[]).includes(currentUser)){
       db.ref("patrols/"+id).update({panic:true});
+
       playAlarm();
-      setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
+
+      setTimeout(()=>{
+        db.ref("patrols/"+id).update({panic:false});
+      },90000);
     }
   });
 
-  notify("PANIC déclenché","danger");
+  notify("PANIC déclenché");
 }
 
-/* SOUND PANIC (2.5s double tone) */
 function playAlarm(){
   let ctx=new AudioContext();
   let o1=ctx.createOscillator();
@@ -349,18 +266,24 @@ function playAlarm(){
     if(t<dur/2){
       o1.frequency.value=700;
       o2.frequency.value=1200;
-    }else{
+    } else {
       o1.frequency.value=1200;
       o2.frequency.value=700;
     }
     if(t<dur) requestAnimationFrame(loop);
   }
+
   loop();
 
-  setTimeout(()=>{o1.stop();o2.stop();},2500);
+  setTimeout(()=>{
+    o1.stop();
+    o2.stop();
+  },2500);
 }
 
-/* DISPATCH */
+/* ===================== */
+/* DISPATCH              */
+/* ===================== */
 function dispatch(){
   let ctx=new AudioContext();
   let o=ctx.createOscillator();
@@ -368,24 +291,7 @@ function dispatch(){
   o.connect(ctx.destination);
   o.start();
   setTimeout(()=>o.stop(),400);
-  notify("Dispatch","warning");
-}
 
-/* TN */
-function setTN(){
-  db.ref("tn").set(currentUser);
-}
-
-function removeTN(){
-  db.ref("tn").remove();
-}
-
-function listenTN(){
-  db.ref("tn").on("value",snap=>{
-    tnDisplay.innerText="TN: "+(snap.val()||"Aucun");
-  });
+  notify("Dispatch envoyé");
 }
 </script>
-
-</body>
-</html>
