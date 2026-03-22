@@ -141,7 +141,15 @@
     if (!id || !pw) { err.textContent = 'Champs requis.'; return; }
     const email = id + '@patrol.fr';
     try {
-      await signInWithEmailAndPassword(auth, email, pw);
+      const cred = await signInWithEmailAndPassword(auth, email, pw);
+      // Vérification ban APRÈS connexion
+      const snap = await get(ref(db, `users/${cred.user.uid}`));
+      if (snap.exists() && snap.val().banned === true) {
+        await signOut(auth);
+        err.style.color = '#f87171';
+        err.textContent = '🚫 Compte suspendu. Contactez un administrateur.';
+        return;
+      }
     } catch(e) { err.textContent = translateError(e.code); }
   };
 
@@ -182,7 +190,8 @@
       document.getElementById('dispatch-btn').classList.remove('hidden');
       document.getElementById('panic-btn').classList.remove('hidden');
 
-      startListeners();
+      // Petit délai pour laisser Firebase propager online:true avant d'écouter
+      setTimeout(() => startListeners(), 300);
     } else {
       currentUser = null; currentUserData = null; isAdmin = false;
       stopListeners();
@@ -198,12 +207,14 @@
       effectifs = snap.val() || {};
       renderEffectifs();
       renderAllSelects();
+      if (isAdmin) renderAdminUserList();
     });
     activeListeners.push(() => off(usersRef));
 
     const patRef = ref(db, 'patrouilles');
-    const unsubPat = onValue(patRef, snap => {
-      patrouilles = snap.val() || {};
+    onValue(patRef, snap => {
+      const raw = snap.val();
+      patrouilles = (raw && typeof raw === 'object') ? raw : {};
       renderPatrouilles();
     });
     activeListeners.push(() => off(patRef));
@@ -234,7 +245,7 @@
   // ─── EFFECTIFS ─────────────────────────────────────────────────────────────
   function getOnlineEffectifs() {
     return Object.entries(effectifs)
-      .filter(([, u]) => u.online)
+      .filter(([, u]) => u && u.online === true)
       .map(([uid, u]) => ({ uid, ...u }));
   }
 
@@ -243,9 +254,19 @@
     const list = document.getElementById('effectif-list');
     if (!list) return;
     list.innerHTML = '';
-    getOnlineEffectifs()
-      .filter(u => u.username.toLowerCase().includes(search))
-      .forEach(u => {
+
+    const online = getOnlineEffectifs().filter(u => u.username.toLowerCase().includes(search));
+
+    if (online.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--text3);padding:10px;text-align:center;';
+      empty.textContent = 'Aucun effectif en ligne';
+      list.appendChild(empty);
+      document.getElementById('effectif-count').textContent = '0 en ligne';
+      return;
+    }
+
+    online.forEach(u => {
         const li = document.createElement('div');
         li.className = 'effectif-item' + (selectedEffectifs.includes(u.uid) ? ' selected' : '');
         li.dataset.uid = u.uid;
@@ -271,10 +292,60 @@
   }
 
   async function deleteUser(uid) {
-    if (!confirm('Supprimer cet effectif ?')) return;
+    if (!confirm('Supprimer définitivement ce compte ?')) return;
     await remove(ref(db, `users/${uid}`));
-    showNotif('Effectif supprimé.', 'warn');
+    showNotif('Compte supprimé.', 'warn');
+    renderAdminUserList();
   }
+
+  async function banUser(uid, username) {
+    if (!confirm(`Suspendre le compte "${username}" ?`)) return;
+    await update(ref(db, `users/${uid}`), { banned: true, online: false });
+    showNotif(`🚫 ${username} suspendu.`, 'warn');
+    renderAdminUserList();
+  }
+
+  async function unbanUser(uid, username) {
+    await update(ref(db, `users/${uid}`), { banned: false });
+    showNotif(`✅ ${username} réactivé.`, 'success');
+    renderAdminUserList();
+  }
+
+  function renderAdminUserList() {
+    const container = document.getElementById('admin-user-list');
+    if (!container) return;
+    const allUsers = Object.entries(effectifs);
+    if (!allUsers.length) {
+      container.innerHTML = `<div style="color:var(--text3);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px;">Aucun membre enregistré.</div>`;
+      return;
+    }
+    container.innerHTML = '';
+    allUsers.forEach(([uid, u]) => {
+      if (!u || u.username === 'admin') return;
+      const row = document.createElement('div');
+      row.className = 'admin-user-row' + (u.banned ? ' banned' : '');
+      row.innerHTML = `
+        <div class="admin-user-info">
+          <span class="admin-user-dot" style="background:${u.banned ? 'var(--red)' : u.online ? 'var(--green)' : 'var(--text3)'}"></span>
+          <span class="admin-user-name">${u.username}</span>
+          <span class="admin-user-status">${u.banned ? '🚫 SUSPENDU' : u.online ? '🟢 EN LIGNE' : '⚫ HORS LIGNE'}</span>
+        </div>
+        <div class="admin-user-actions">
+          ${u.banned
+            ? `<button class="btn-admin-action unban" onclick="unbanUser('${uid}','${u.username}')">RÉACTIVER</button>`
+            : `<button class="btn-admin-action ban" onclick="banUser('${uid}','${u.username}')">SUSPENDRE</button>`
+          }
+          <button class="btn-admin-action delete" onclick="deleteUser('${uid}')">SUPPRIMER</button>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  window.banUser = banUser;
+  window.unbanUser = unbanUser;
+  window.deleteUser = deleteUser;
+  window.renderAdminUserList = renderAdminUserList;
 
   window.filterEffectifs = function() { renderEffectifs(); };
 
@@ -389,31 +460,40 @@
 
   function renderPatrouilles() {
     const tbody = document.getElementById('patrol-tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
-    const entries = Object.entries(patrouilles);
-    document.getElementById('patrol-count').textContent = entries.length;
 
-    if (!entries.length) {
+    const entries = Object.entries(patrouilles).filter(([, p]) => p && typeof p === 'object');
+    const count = entries.length;
+
+    // Mise à jour compteur
+    const countEl = document.getElementById('patrol-count');
+    if (countEl) countEl.textContent = count;
+
+    if (!count) {
       tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Aucune patrouille active</td></tr>`;
       return;
     }
 
     entries.forEach(([id, p]) => {
-      const names = (p.effectifs || []).map(uid => effectifs[uid]?.username || uid).join(', ');
-      const opjName = p.opj === 'Oui' && p.opjAgent ? effectifs[p.opjAgent]?.username || '' : '';
-      const armeName = p.arme === 'Oui' && p.armeAgent ? effectifs[p.armeAgent]?.username || '' : '';
+      const names = Array.isArray(p.effectifs)
+        ? p.effectifs.map(uid => effectifs[uid]?.username || uid).join(', ')
+        : '—';
+      const opjName = p.opj === 'Oui' && p.opjAgent ? (effectifs[p.opjAgent]?.username || '') : '';
+      const armeName = p.arme === 'Oui' && p.armeAgent ? (effectifs[p.armeAgent]?.username || '') : '';
       const opjText = p.opj === 'Oui' ? `OPJ: Oui${opjName ? ` (${opjName})` : ''}` : 'OPJ: Non';
       const armeText = p.arme === 'Oui' ? `Arme: Oui${armeName ? ` (${armeName})` : ''}` : 'Arme: Non';
+      const statut = p.statut || 'Disponible';
       const tr = document.createElement('tr');
       tr.className = p.panic ? 'panic-row' : '';
       tr.innerHTML = `
-        <td><span class="indicatif-badge">${p.indicatif}</span></td>
-        <td>${p.vehicule}</td>
-        <td class="effectifs-cell">${names || '—'}</td>
+        <td><span class="indicatif-badge">${p.indicatif || '—'}</span></td>
+        <td>${p.vehicule || '—'}</td>
+        <td class="effectifs-cell">${names}</td>
         <td>
-          <select class="statut-select statut-${slugify(p.statut)}" onchange="changeStatut('${id}', this.value)">
+          <select class="statut-select statut-${slugify(statut)}" onchange="changeStatut('${id}', this.value)">
             ${['Disponible','Indisponible','Sur intervention','En procédure'].map(s =>
-              `<option value="${s}" ${s === p.statut ? 'selected' : ''}>${s}</option>`).join('')}
+              `<option value="${s}" ${s === statut ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
         </td>
         <td class="meta-cell">${opjText}</td>
@@ -461,7 +541,17 @@
   };
 
   window.toggleAdminPanel = function() {
-    document.getElementById('admin-panel').classList.toggle('hidden');
+    const panel = document.getElementById('admin-panel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) renderAdminUserList();
+  };
+
+  window.switchAdminTab = function(tab, btn) {
+    document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.add('hidden'));
+    btn.classList.add('active');
+    document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
+    if (tab === 'membres') renderAdminUserList();
   };
 
   // ─── TABS ──────────────────────────────────────────────────────────────────
@@ -934,7 +1024,7 @@ select.form-input { appearance: none; cursor: pointer; }
 #admin-panel {
   background: var(--bg2);
   border: 1px solid var(--yellow);
-  border-radius: 4px; padding: 20px;
+  border-radius: 4px; padding: 16px 20px;
   margin-bottom: 20px;
   position: relative;
 }
@@ -944,6 +1034,20 @@ select.form-input { appearance: none; cursor: pointer; }
   font-size: 11px; font-weight: 700; letter-spacing: 3px;
   color: var(--yellow); margin-bottom: 14px;
 }
+.admin-tabs {
+  display: flex; gap: 4px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border); padding-bottom: 12px;
+}
+.admin-tab {
+  padding: 6px 16px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text3); font-family: 'Orbitron', monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  transition: all 0.2s;
+}
+.admin-tab:hover { border-color: var(--yellow); color: var(--yellow); }
+.admin-tab.active { background: rgba(234,179,8,0.12); border-color: var(--yellow); color: var(--yellow); }
+.admin-tab-pane.hidden { display: none; }
 .annonce-form { display: flex; gap: 10px; }
 .annonce-form input {
   flex: 1; padding: 9px 14px;
@@ -959,6 +1063,33 @@ select.form-input { appearance: none; cursor: pointer; }
   font-weight: 700; letter-spacing: 2px; transition: all 0.2s; white-space: nowrap;
 }
 .btn-annonce:hover { background: var(--yellow); color: #000; }
+
+/* Admin user list */
+#admin-user-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.admin-user-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-radius: 3px;
+  background: var(--bg); border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+.admin-user-row:hover { border-color: var(--border2); }
+.admin-user-row.banned { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
+.admin-user-info { display: flex; align-items: center; gap: 10px; }
+.admin-user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.admin-user-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; }
+.admin-user-status { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text3); }
+.admin-user-actions { display: flex; gap: 6px; }
+.btn-admin-action {
+  padding: 5px 12px; border-radius: 3px; cursor: pointer; border: 1px solid;
+  font-family: 'Orbitron', monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; transition: all 0.2s;
+}
+.btn-admin-action.ban { border-color: var(--orange); color: var(--orange); background: transparent; }
+.btn-admin-action.ban:hover { background: var(--orange); color: #000; }
+.btn-admin-action.unban { border-color: var(--green); color: var(--green); background: transparent; }
+.btn-admin-action.unban:hover { background: var(--green); color: #000; }
+.btn-admin-action.delete { border-color: var(--red); color: var(--red); background: transparent; }
+.btn-admin-action.delete:hover { background: var(--red); color: #fff; }
 
 /* ── NOTIFICATIONS ── */
 #notif-container {
@@ -1095,7 +1226,7 @@ select.form-input { appearance: none; cursor: pointer; }
       </svg>
       PATROL OPS
     </div>
-    <div class="topbar-tn">TN: <strong id="tn-display">—</strong></div>
+    <div class="topbar-tn">TRANSMISSION NATIONALE: <strong id="tn-display">—</strong></div>
     <div class="topbar-sep"></div>
     <div class="topbar-user" id="current-user-name"></div>
     <button class="btn-topbar btn-dispatch hidden" id="dispatch-btn" onclick="doDispatch()">📡 DISPATCH</button>
@@ -1107,9 +1238,25 @@ select.form-input { appearance: none; cursor: pointer; }
   <!-- ADMIN PANEL -->
   <div style="padding: 0 20px;">
     <div id="admin-panel" class="hidden">
-      <div class="annonce-form">
-        <input id="annonce-msg" type="text" placeholder="Message d'annonce globale…">
-        <button class="btn-annonce" onclick="sendAnnonce()">📢 ENVOYER</button>
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchAdminTab('annonce', this)">📢 ANNONCES</button>
+        <button class="admin-tab" onclick="switchAdminTab('membres', this)">👥 GESTION MEMBRES</button>
+      </div>
+
+      <!-- Onglet Annonces -->
+      <div id="admin-tab-annonce" class="admin-tab-pane">
+        <div class="annonce-form">
+          <input id="annonce-msg" type="text" placeholder="Message d'annonce globale…">
+          <button class="btn-annonce" onclick="sendAnnonce()">📢 ENVOYER</button>
+        </div>
+      </div>
+
+      <!-- Onglet Membres -->
+      <div id="admin-tab-membres" class="admin-tab-pane hidden">
+        <div style="margin-bottom:10px; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3);">
+          🚫 SUSPENDRE bloque la reconnexion — 🗑 SUPPRIMER efface le compte définitivement
+        </div>
+        <div id="admin-user-list"></div>
       </div>
     </div>
   </div>
@@ -1133,7 +1280,7 @@ select.form-input { appearance: none; cursor: pointer; }
 
       <!-- TN -->
       <div>
-        <div class="sidebar-section-title">CHEF DE PATROUILLE (TN)</div>
+        <div class="sidebar-section-title">TRANSMISSION NATIONALE (TN)</div>
         <div class="tn-box">
           <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text3);">EN COURS</div>
           <div class="tn-name" id="tn-display-sidebar">—</div>
@@ -1149,7 +1296,7 @@ select.form-input { appearance: none; cursor: pointer; }
     <main class="main-content">
       <div class="page-header">
         <div class="page-title">PATROUILLES</div>
-        <div class="stat-chip"><span id="patrol-count">0</span> actives</div>
+        <div class="stat-chip"><span id="patrol-count">0</span> active(s)</div>
         <button class="btn-new" onclick="openPatrolModal()">+ NOUVELLE PATROUILLE</button>
       </div>
 
