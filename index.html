@@ -20,7 +20,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 label { font-weight:bold; margin-top:10px; display:block; }
 
-/* PANIC */
+/* PANIC VISUEL */
 .panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
 
@@ -42,16 +42,20 @@ label { font-weight:bold; margin-top:10px; display:block; }
   border-left: 5px solid #22c55e;
   border-radius: 5px;
   min-width: 250px;
+  animation: slideIn 0.3s ease, fadeOut 0.5s ease 4s forwards;
 }
 
-/* GLOBAL MESSAGE */
-#globalBanner {
-  display:none;
-  background:red;
-  color:white;
-  padding:15px;
-  text-align:center;
-  font-weight:bold;
+.toast.warning { border-left-color: orange; }
+.toast.danger { border-left-color: red; }
+.toast.info { border-left-color: #3b82f6; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; transform: translateX(100%); }
 }
 </style>
 </head>
@@ -60,26 +64,12 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <h1 style="text-align:center;">🚓 Centre Opérationnel Elite</h1>
 
-<div id="globalBanner"></div>
-
 <div id="auth">
-<input id="username" placeholder="Identifiant">
+<input id="username" placeholder="Identifiant (TR12A)">
 <input id="password" type="password" placeholder="Mot de passe">
 <button onclick="register()">Créer compte</button>
 <button onclick="login()">Connexion</button>
 <p id="error" style="color:red;"></p>
-</div>
-
-<div id="adminPanel" style="display:none; background:#1e293b; padding:10px; margin-bottom:10px;">
-<h3>👑 Panel Admin</h3>
-
-<input id="adminMessage" placeholder="Message global...">
-<button onclick="sendGlobalMessage()">Envoyer annonce</button>
-
-<br><br>
-
-<select id="adminUsers"></select>
-<button onclick="deleteUser()">Supprimer utilisateur</button>
 </div>
 
 <div id="app" style="display:none;">
@@ -95,24 +85,29 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <h3>Créer une patrouille</h3>
 
+<label>Recherche effectifs</label>
+<input id="searchEffectifs" oninput="filterUsers()" placeholder="Rechercher un agent...">
+
+<p style="font-size:12px;">Maintenir CTRL pour sélectionner plusieurs effectifs</p>
+
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
 
-<label>OPJ à bord ?</label>
+<label>Arme longue</label>
+<select id="arme" onchange="toggleArme()">
+<option value="Non">Non</option>
+<option value="Oui">Oui</option>
+</select>
+
+<select id="armeEffectif"></select>
+
+<label>OPJ</label>
 <select id="opj" onchange="toggleOPJ()">
 <option value="Non">Non</option>
 <option value="Oui">Oui</option>
 </select>
 
-<select id="opjSelect"></select>
-
-<label>Arme longue à bord ?</label>
-<select id="armeLongue" onchange="toggleArmeLongue()">
-<option value="Non">Non</option>
-<option value="Oui">Oui</option>
-</select>
-
-<select id="armeLongueSelect"></select>
+<select id="opjList" multiple></select>
 
 <label>Indicatif</label>
 <input id="indicatif">
@@ -140,7 +135,7 @@ label { font-weight:bold; margin-top:10px; display:block; }
 <tr>
 <th>Indicatif</th>
 <th>Véhicule</th>
-<th>Effectifs</th>
+<th>Effectifs / Rôles</th>
 <th>Statut</th>
 <th>Actions</th>
 </tr>
@@ -157,6 +152,7 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <script>
 
+// FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -173,128 +169,115 @@ const authFirebase = firebase.auth();
 const db = firebase.database();
 
 let currentUser="";
-let isAdmin=false;
 
-function notify(msg){
+// NOTIFICATIONS
+function notify(msg,type="info"){
   let div=document.createElement("div");
-  div.className="toast";
+  div.className="toast "+type;
   div.innerText=msg;
   notifications.appendChild(div);
-  setTimeout(()=>div.remove(),4000);
+  setTimeout(()=>div.remove(),5000);
 }
 
+// AUTH
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@patrol.fr";
 }
 
-/* ADMIN */
-function checkAdmin(){
-  if(username.value==="admin" && password.value==="admin123"){
-    isAdmin=true;
-    adminPanel.style.display="block";
-  }
-}
-
 function register(){
-  authFirebase.createUserWithEmailAndPassword(toEmail(username.value), password.value)
-  .then(()=>{
-    db.ref("users/"+username.value).set({online:true});
+  authFirebase.createUserWithEmailAndPassword(
+    toEmail(username.value),
+    password.value
+  ).then(()=>{
+    db.ref("users/"+username.value).set(true);
+    notify("Compte créé","info");
   }).catch(e=>error.innerText=e.message);
 }
 
 function login(){
-  checkAdmin();
-  authFirebase.signInWithEmailAndPassword(toEmail(username.value), password.value)
-  .catch(e=>error.innerText=e.message);
+  authFirebase.signInWithEmailAndPassword(
+    toEmail(username.value),
+    password.value
+  ).catch(e=>error.innerText=e.message);
 }
 
 function logout(){
-  db.ref("users/"+currentUser).update({online:false});
   authFirebase.signOut().then(()=>location.reload());
 }
 
 authFirebase.onAuthStateChanged(user=>{
   if(user){
     currentUser=username.value;
-
-    db.ref("users/"+currentUser).update({online:true});
-
     auth.style.display="none";
     app.style.display="block";
-
     loadUsers();
     listenPatrols();
     listenTN();
-    listenGlobalMessage();
   }
 });
 
-/* USERS */
+// USERS
 function loadUsers(){
   db.ref("users").on("value", snap=>{
     let data=snap.val()||{};
 
     effectifs.innerHTML="";
-    opjSelect.innerHTML="";
-    armeLongueSelect.innerHTML="";
-    adminUsers.innerHTML="";
+    armeEffectif.innerHTML="";
+    opjList.innerHTML="";
 
-    Object.entries(data).forEach(([u,val])=>{
-      if(val && val.online){
+    Object.keys(data).forEach(u=>{
+      let o1=document.createElement("option");
+      o1.value=u;o1.textContent=u;
+      effectifs.appendChild(o1);
 
-        let o=document.createElement("option");
-        o.value=u;o.textContent=u;
-        effectifs.appendChild(o);
+      let o2=document.createElement("option");
+      o2.value=u;o2.textContent=u;
+      armeEffectif.appendChild(o2);
 
-        let o2=document.createElement("option");
-        o2.value=u;o2.textContent=u;
-        opjSelect.appendChild(o2);
-
-        let o3=document.createElement("option");
-        o3.value=u;o3.textContent=u;
-        armeLongueSelect.appendChild(o3);
-
-        if(isAdmin){
-          let oa=document.createElement("option");
-          oa.value=u;
-          oa.textContent=u;
-          adminUsers.appendChild(oa);
-        }
-      }
+      let o3=document.createElement("option");
+      o3.value=u;o3.textContent=u;
+      opjList.appendChild(o3);
     });
   });
 }
 
-/* TOGGLES */
+// SEARCH
+function filterUsers(){
+  let search = searchEffectifs.value.toLowerCase();
+  Array.from(effectifs.options).forEach(o=>{
+    o.style.display = o.textContent.toLowerCase().includes(search) ? "" : "none";
+  });
+}
+
+// TOGGLES
+function toggleArme(){
+  armeEffectif.style.display = arme.value==="Oui" ? "block":"none";
+}
 function toggleOPJ(){
-  opjSelect.style.display = opj.value==="Oui" ? "block":"none";
+  opjList.style.display = opj.value==="Oui" ? "block":"none";
 }
 
-function toggleArmeLongue(){
-  armeLongueSelect.style.display = armeLongue.value==="Oui" ? "block":"none";
-}
-
-/* ADD PATROL */
+// ADD
 function addPatrol(){
 
-  let eff=[...effectifs.selectedOptions].map(o=>o.value);
+  let eff = Array.from(effectifs.selectedOptions).map(o=>o.value);
 
   db.ref("patrols").push({
-    indicatif:indicatif.value,
-    vehicule:vehicule.value,
-    effectifs:eff,
-    statut:statut.value,
-    opj:opj.value,
-    opjEffectif: opj.value==="Oui" ? opjSelect.value : null,
-    armeLongue:armeLongue.value,
-    armeEffectif: armeLongue.value==="Oui" ? armeLongueSelect.value : null,
+    indicatif: indicatif.value,
+    vehicule: vehicule.value,
+    effectifs: eff,
+    arme: arme.value,
+    armeEffectif: armeEffectif.value,
+    opjList: Array.from(opjList.selectedOptions).map(o=>o.value),
+    mission: mission.value,
+    statut: statut.value,
     panic:false
   });
 
-  notify("Patrouille créée");
+  notify("Patrouille créée","info");
 }
 
-/* RENDER */
+// LISTEN
 let patrols={};
 
 function listenPatrols(){
@@ -304,6 +287,7 @@ function listenPatrols(){
   });
 }
 
+// RENDER
 function render(){
   list.innerHTML="";
 
@@ -315,14 +299,20 @@ function render(){
     if(p.statut==="En procédure") color="#3b82f6";
 
     let tr=document.createElement("tr");
+
     if(p.panic) tr.classList.add("panic");
 
-    let opjText = p.opj==="Oui" ? "OPJ: Oui ("+p.opjEffectif+")" : "OPJ: Non";
-    let armeText = p.armeLongue==="Oui" ? "Arme: Oui ("+p.armeEffectif+")" : "Arme: Non";
+    let opjText = (p.opjList && p.opjList.length>0)
+      ? "OPJ: oui ("+p.opjList.join(", ")+")"
+      : "OPJ: non";
+
+    let armeText = (p.arme==="Oui")
+      ? "Arme: "+p.armeEffectif
+      : "Arme: non";
 
     tr.innerHTML=`
-<td>${p.indicatif||""}</td>
-<td>${p.vehicule||""}</td>
+<td>${p.indicatif}</td>
+<td>${p.vehicule}</td>
 <td>${(p.effectifs||[]).join(", ")}<br>${opjText}<br>${armeText}</td>
 
 <td>
@@ -335,6 +325,7 @@ function render(){
 </td>
 
 <td>
+<button onclick="editPatrol('${id}')">Modifier</button>
 <button onclick="deletePatrol('${id}')">Supprimer</button>
 </td>
 `;
@@ -344,71 +335,112 @@ function render(){
 
 function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
+  notify("Statut mis à jour","info");
 }
 
+// EDIT
+function editPatrol(id){
+  let p=patrols[id];
+
+  let indicatif=prompt("Indicatif",p.indicatif);
+  let vehicule=prompt("Véhicule",p.vehicule);
+  let mission=prompt("Mission",p.mission);
+  let statut=prompt("Statut",p.statut);
+
+  db.ref("patrols/"+id).update({indicatif,vehicule,mission,statut});
+}
+
+// DELETE
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-/* ADMIN DELETE USER */
-function deleteUser(){
-  if(!isAdmin) return;
-  db.ref("users/"+adminUsers.value).remove();
-}
+// PANIC AUDIO FIX
+function panic(){
 
-/* GLOBAL MESSAGE */
-function sendGlobalMessage(){
-  if(!isAdmin) return;
-
-  db.ref("globalMessage").set({
-    text: adminMessage.value,
-    time: Date.now()
-  });
-
-  playSound();
-}
-
-function listenGlobalMessage(){
-  db.ref("globalMessage").on("value", snap=>{
-    let data=snap.val();
-    if(data){
-      globalBanner.style.display="block";
-      globalBanner.innerText=data.text;
-
-      setTimeout(()=>{
-        globalBanner.style.display="none";
-      },10000);
+  Object.entries(patrols).forEach(([id,p])=>{
+    if((p.effectifs||[]).includes(currentUser)){
+      db.ref("patrols/"+id).update({panic:true});
+      playAlarm();
+      setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
     }
   });
+
+  notify("🚨 PANIC déclenché","danger");
 }
 
-/* TN */
-function setTN(){ db.ref("tn").set(currentUser); }
-function removeTN(){ db.ref("tn").remove(); }
+function playAlarm(){
+  let ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  let osc1 = ctx.createOscillator();
+  let osc2 = ctx.createOscillator();
+  let gain = ctx.createGain();
+
+  gain.gain.value=0.2;
+
+  osc1.type="sine";
+  osc2.type="sine";
+
+  osc1.connect(gain);
+  osc2.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc1.start();
+  osc2.start();
+
+  let start = ctx.currentTime;
+  let duration = 2500;
+
+  function loop(){
+    let t = ctx.currentTime - start;
+
+    if(t < duration/2){
+      osc1.frequency.setValueAtTime(700, ctx.currentTime);
+      osc2.frequency.setValueAtTime(1200, ctx.currentTime);
+    } else {
+      osc1.frequency.setValueAtTime(1200, ctx.currentTime);
+      osc2.frequency.setValueAtTime(700, ctx.currentTime);
+    }
+
+    if(t < duration){
+      requestAnimationFrame(loop);
+    }
+  }
+
+  loop();
+
+  setTimeout(()=>{
+    osc1.stop();
+    osc2.stop();
+  }, duration);
+}
+
+// DISPATCH
+function dispatch(){
+  let ctx=new AudioContext();
+  let osc=ctx.createOscillator();
+  osc.frequency.value=900;
+  osc.connect(ctx.destination);
+  osc.start();
+  setTimeout(()=>osc.stop(),300);
+  notify("📢 Dispatch","warning");
+}
+
+// TN
+function setTN(){
+  db.ref("tn").set(currentUser);
+  notify("Vous êtes TN","info");
+}
+
+function removeTN(){
+  db.ref("tn").remove();
+  notify("TN retiré","warning");
+}
 
 function listenTN(){
   db.ref("tn").on("value", snap=>{
     tnDisplay.innerText="TN : "+(snap.val()||"Aucun");
   });
-}
-
-/* SOUND */
-function playSound(){
-  let ctx=new AudioContext();
-  let osc=ctx.createOscillator();
-  osc.frequency.value=1000;
-  osc.connect(ctx.destination);
-  osc.start();
-  setTimeout(()=>osc.stop(),300);
-}
-
-/* PANIC */
-function panic(){ notify("PANIC"); }
-
-/* DISPATCH */
-function dispatch(){
-  playSound();
-  notify("Dispatch");
 }
 
 </script>
