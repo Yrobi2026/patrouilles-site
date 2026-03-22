@@ -18,10 +18,6 @@ button { padding:6px; margin:5px; cursor:pointer; }
 table { width:100%; background:white; color:black; border-collapse:collapse; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
-.status-Disponible { background:green; color:white; }
-.status-Indisponible { background:red; color:white; }
-.status-Intervention { background:orange; }
-
 .panic { animation: blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
 </style>
@@ -33,11 +29,12 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <div id="auth">
 <h3>Connexion</h3>
-<input id="email" placeholder="Email">
+<input id="username" placeholder="Identifiant (ex: TR-12-A)">
 <input id="password" type="password" placeholder="Mot de passe">
 <br>
 <button onclick="register()">Créer compte</button>
 <button onclick="login()">Connexion</button>
+<p id="error" style="color:red;"></p>
 </div>
 
 <div id="app" style="display:none;">
@@ -55,7 +52,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <button onclick="addPatrol()">Ajouter</button>
 
-<h3>Patrouilles actives</h3>
+<h3>Patrouilles</h3>
 
 <table>
 <thead>
@@ -64,7 +61,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <th>Véhicule</th>
 <th>Utilisateur</th>
 <th>Statut</th>
-<th>Actions</th>
+<th>Action</th>
 </tr>
 </thead>
 <tbody id="list"></tbody>
@@ -76,6 +73,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <script>
 
+// 🔥 CONFIG FIREBASE (LA TIENNE)
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -94,25 +92,44 @@ const db = firebase.database();
 let currentUser = null;
 let patrols = {};
 
-auth.onAuthStateChanged(user => {
+// 🔥 Convert username → email
+function toEmail(username){
+  return username + "@patrouille.fr";
+}
+
+// 🔐 AUTH
+function register(){
+  let email = toEmail(username.value);
+
+  auth.createUserWithEmailAndPassword(email, password.value)
+  .then(()=>{
+    error.innerText = "Compte créé";
+  })
+  .catch(e=>{
+    error.innerText = e.message;
+  });
+}
+
+function login(){
+  let email = toEmail(username.value);
+
+  auth.signInWithEmailAndPassword(email, password.value)
+  .catch(e=>{
+    error.innerText = e.message;
+  });
+}
+
+// ✅ SESSION
+auth.onAuthStateChanged(user=>{
   if(user){
-    currentUser = user.email;
-    authDiv.style.display="none";
+    currentUser = user.email.split("@")[0];
+    auth.style.display="none";
     app.style.display="block";
     listenPatrols();
   }
 });
 
-function register(){
-  auth.createUserWithEmailAndPassword(email.value, password.value)
-  .catch(e => alert(e.message));
-}
-
-function login(){
-  auth.signInWithEmailAndPassword(email.value, password.value)
-  .catch(e => alert(e.message));
-}
-
+// 🚓 PATROUILLES
 function addPatrol(){
   if(!indicatif.value || !vehicule.value) return alert("Remplis les champs");
 
@@ -121,12 +138,12 @@ function addPatrol(){
     vehicule: vehicule.value,
     user: currentUser,
     statut: statut.value,
-    panic: false
+    panic:false
   });
 }
 
 function listenPatrols(){
-  db.ref("patrols").on("value", snap => {
+  db.ref("patrols").on("value", snap=>{
     patrols = snap.val() || {};
     render();
   });
@@ -147,33 +164,31 @@ function render(){
     <td>${p.user}</td>
     <td>
       <select onchange="updateStatus('${id}', this.value)">
-        <option ${p.statut==='Disponible'?'selected':''}>Disponible</option>
-        <option ${p.statut==='Indisponible'?'selected':''}>Indisponible</option>
-        <option ${p.statut==='Sur intervention'?'selected':''}>Sur intervention</option>
+        <option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
+        <option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
+        <option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
       </select>
     </td>
-    <td>
-      <button onclick="deletePatrol('${id}')">Supprimer</button>
-    </td>
+    <td><button onclick="deletePatrol('${id}')">Supprimer</button></td>
     `;
 
     list.appendChild(tr);
   }
 }
 
-function updateStatus(id, val){
-  db.ref("patrols/"+id).update({statut: val});
+function updateStatus(id,val){
+  db.ref("patrols/"+id).update({statut:val});
 }
 
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
+// 🚨 PANIC
 function panic(){
   for(let id in patrols){
     if(patrols[id].user === currentUser){
       db.ref("patrols/"+id).update({panic:true});
-
       setTimeout(()=>{
         db.ref("patrols/"+id).update({panic:false});
       },90000);
