@@ -228,13 +228,14 @@ function renderServerList() {
       const card = document.createElement('div');
       card.className = 'server-card';
       card.innerHTML = `
+        ${s.logo ? `<img class="server-card-logo" src="${s.logo}" alt="${s.name}">` : `<div class="server-card-logo-placeholder">🎮</div>`}
         <div class="server-card-info">
           <div class="server-card-name">${s.name}</div>
           <div class="server-card-type badge-${s.type}">${s.type === 'WL' ? '🔒 WhiteList' : '🔓 Free Access'}</div>
         </div>
-        ${isOwner ? `<button class="btn-icon danger" onclick="deleteServer('${id}')">🗑</button>` : ''}
+        ${isOwner ? `<button class="btn-icon danger" onclick="event.stopPropagation();deleteServer('${id}')">🗑</button>` : ''}
       `;
-      card.querySelector('.server-card-info').onclick = () => selectServer(id, s);
+      card.onclick = () => selectServer(id, s);
       list.appendChild(card);
     });
   }
@@ -246,17 +247,36 @@ function renderServerList() {
 window.createServer = async function() {
   const name = document.getElementById('server-name').value.trim();
   const type = document.getElementById('server-type').value;
-  if (!name) { showNotif('Nom requis.','warn'); return; }
-  await push(ref(db,'servers'), { name, type });
+  const fileInput = document.getElementById('server-logo');
+  if (!name) { showNotif('Nom requis.', 'warn'); return; }
+
+  let logo = '';
+  if (fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0];
+    logo = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject('Erreur lecture fichier');
+      reader.readAsDataURL(file);
+    });
+  }
+
+  await push(ref(db, 'servers'), { name, type, logo });
   document.getElementById('server-name').value = '';
+  fileInput.value = '';
+  document.getElementById('logo-preview').style.display = 'none';
+  document.getElementById('logo-preview').src = '';
   await loadServers();
-  showNotif(`Serveur "${name}" créé.`,'success','notif');
+  showNotif(`Serveur "${name}" créé.`, 'success', 'notif');
 };
 
-// Expose for inline panel
-window._pushServer = async (name, type) => {
-  await push(ref(db,'servers'), { name, type });
-  await loadServers();
+window.previewLogo = function() {
+  const file = document.getElementById('server-logo').files[0];
+  const preview = document.getElementById('logo-preview');
+  if (!file) { preview.style.display = 'none'; return; }
+  const reader = new FileReader();
+  reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
+  reader.readAsDataURL(file);
 };
 
 window.deleteServer = async function(id) {
@@ -734,8 +754,9 @@ body::before {
 }
 .auth-card {
   background:var(--bg2); border:1px solid var(--border2); border-radius:4px;
-  padding:40px; width:420px; position:relative;
+  padding:40px; width:520px; position:relative;
   box-shadow:0 0 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(0,212,255,.1);
+  max-height:95vh; overflow-y:auto;
 }
 .auth-card::before {
   content:''; position:absolute; top:0; left:0; right:0; height:2px;
@@ -774,6 +795,57 @@ body::before {
 .btn-primary:hover { background:var(--accent); color:var(--bg); box-shadow:0 0 20px rgba(0,212,255,.3); }
 .form-error { font-size:12px; color:#f87171; margin-top:10px; font-family:'Share Tech Mono',monospace; text-align:center; min-height:16px; }
 
+/* ── FEATURES SECTION ── */
+.features-section {
+  margin-top:24px; padding-top:20px;
+  border-top:1px solid var(--border);
+}
+.features-title {
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:var(--accent); margin-bottom:14px; text-align:center;
+}
+.features-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+}
+.feature-item {
+  display:flex; align-items:flex-start; gap:8px;
+  background:rgba(0,212,255,.04); border:1px solid var(--border);
+  border-radius:3px; padding:8px 10px;
+  font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:500; color:var(--text2);
+  transition:border-color .2s;
+}
+.feature-item:hover { border-color:var(--border2); color:var(--text); }
+.f-icon { font-size:14px; flex-shrink:0; margin-top:1px; }
+
+/* ── AUTH FOOTER ── */
+.auth-footer {
+  margin-top:20px; padding-top:16px;
+  border-top:1px solid var(--border);
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  text-align:center;
+}
+.auth-footer-made {
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700;
+  letter-spacing:2px; color:var(--text3);
+}
+.auth-footer-made span { color:var(--accent); }
+.auth-footer-discord {
+  display:flex; align-items:center; gap:6px;
+  font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--text2);
+  background:rgba(114,137,218,.1); border:1px solid rgba(114,137,218,.3);
+  border-radius:3px; padding:6px 14px;
+}
+.auth-footer-discord span { color:#7289da; font-weight:700; }
+.auth-footer-add {
+  font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3);
+}
+.auth-footer-npl {
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  color:var(--green); letter-spacing:1px;
+  background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2);
+  border-radius:3px; padding:5px 12px;
+}
+
 /* ══════════════════════════════════════════════════════
    SELECTION SCREENS (SERVER / SERVICE)
 ══════════════════════════════════════════════════════ */
@@ -798,11 +870,20 @@ body::before {
 .server-list { width:100%; max-width:720px; display:flex; flex-direction:column; gap:12px; margin-bottom:28px; }
 .server-card {
   background:var(--bg2); border:1px solid var(--border2); border-radius:4px;
-  padding:18px 20px; display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; display:flex; align-items:center; gap:16px;
   cursor:pointer; transition:all .2s;
 }
 .server-card:hover { border-color:var(--accent); background:rgba(0,212,255,.04); box-shadow:0 0 16px rgba(0,212,255,.08); }
-.server-card-info { flex:1; }
+.server-card-logo {
+  width:52px; height:52px; border-radius:8px; object-fit:cover;
+  border:1px solid var(--border2); flex-shrink:0;
+}
+.server-card-logo-placeholder {
+  width:52px; height:52px; border-radius:8px; flex-shrink:0;
+  background:var(--bg3); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+}
+.server-card-info { flex:1; min-width:0; }
 .server-card-name { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; color:var(--text); }
 .server-card-type { font-family:'Share Tech Mono',monospace; font-size:12px; margin-top:4px; display:inline-block; padding:2px 8px; border-radius:3px; }
 .badge-WL { background:rgba(59,130,246,.15); color:var(--blue); border:1px solid var(--blue); }
@@ -818,7 +899,7 @@ body::before {
   font-family:'Orbitron',monospace; font-size:11px; font-weight:700;
   letter-spacing:3px; color:var(--yellow); margin-bottom:14px;
 }
-.create-server-form { display:flex; gap:10px; flex-wrap:wrap; }
+.create-server-form { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
 .create-server-form input, .create-server-form select {
   flex:1; min-width:140px; padding:9px 14px;
   background:var(--bg); border:1px solid var(--border2); border-radius:3px;
@@ -832,6 +913,31 @@ body::before {
   transition:all .2s; white-space:nowrap;
 }
 .btn-create:hover { background:var(--yellow); color:#000; }
+
+/* Logo upload */
+.logo-upload-row {
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--bg); border:1px dashed var(--border2); border-radius:4px;
+  padding:12px 14px; margin-bottom:4px;
+}
+.logo-upload-label {
+  display:flex; align-items:center; gap:8px; flex:1;
+  font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3); cursor:default;
+}
+.logo-upload-icon { font-size:18px; }
+.logo-upload-label em { font-style:normal; color:var(--text3); font-size:10px; }
+.btn-upload {
+  padding:7px 14px; border:1px solid var(--border2); color:var(--text2);
+  background:transparent; border-radius:3px; cursor:pointer;
+  font-family:'Share Tech Mono',monospace; font-size:11px;
+  transition:all .2s; white-space:nowrap;
+}
+.btn-upload:hover { border-color:var(--yellow); color:var(--yellow); }
+.logo-preview-img {
+  width:52px; height:52px; object-fit:cover;
+  border-radius:8px; border:2px solid var(--yellow);
+  box-shadow:0 0 10px rgba(234,179,8,.3);
+}
 
 /* Services grid */
 .services-grid {
@@ -1177,6 +1283,7 @@ tr:hover td { background:rgba(0,212,255,.02); }
   .auth-card { width:94vw; padding:24px 16px; }
   .auth-logo h1 { font-size:18px; letter-spacing:2px; }
   .logo-shield svg { width:54px !important; height:62px !important; }
+  .features-grid { grid-template-columns:1fr; }
 
   /* Select screens */
   .select-screen { padding:24px 14px; }
@@ -1279,6 +1386,34 @@ tr:hover td { background:rgba(0,212,255,.02); }
       <div class="form-group"><label class="form-label">Mot de passe</label><input id="login-pw" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn-primary" onclick="doLogin()">SE CONNECTER</button>
       <div id="login-error" class="form-error"></div>
+
+      <!-- FONCTIONNALITÉS -->
+      <div class="features-section">
+        <div class="features-title">✦ FONCTIONNALITÉS</div>
+        <div class="features-grid">
+          <div class="feature-item"><span class="f-icon">🚓</span><span>Gestion des patrouilles en temps réel</span></div>
+          <div class="feature-item"><span class="f-icon">🎨</span><span>Statuts colorés (Disponible, Intervention…)</span></div>
+          <div class="feature-item"><span class="f-icon">👥</span><span>Suivi des effectifs connectés</span></div>
+          <div class="feature-item"><span class="f-icon">📡</span><span>Bouton DISPATCH & alerte PANIC sonore</span></div>
+          <div class="feature-item"><span class="f-icon">📢</span><span>Annonces globales en temps réel</span></div>
+          <div class="feature-item"><span class="f-icon">🔒</span><span>Gestion des rôles (Agent, Admin, Gérant)</span></div>
+          <div class="feature-item"><span class="f-icon">🏢</span><span>Multi-serveurs & multi-services RP</span></div>
+          <div class="feature-item"><span class="f-icon">🚒</span><span>7 services : PN, GN, PM, Douane, SP, SAMU, DIR</span></div>
+          <div class="feature-item"><span class="f-icon">🛡️</span><span>OPJ & arme longue à bord par patrouille</span></div>
+          <div class="feature-item"><span class="f-icon">📱</span><span>Compatible mobile & PC</span></div>
+        </div>
+      </div>
+
+      <!-- CRÉDITS -->
+      <div class="auth-footer">
+        <div class="auth-footer-made">Site réalisé par <span>Yrobi</span></div>
+        <div class="auth-footer-discord">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#7289da" style="flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.132 18.11a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+          Contactez-nous : <span>yrobi2023</span>
+        </div>
+        <div class="auth-footer-add">Pour ajouter votre serveur gratuitement</div>
+        <div class="auth-footer-npl">🤝 Site à but non lucratif — Accès 100% gratuit</div>
+      </div>
     </div>
     <div id="auth-register" class="auth-pane">
       <div class="form-group"><label class="form-label">Identifiant</label><input id="reg-id" class="form-input" type="text" placeholder="votre_identifiant" autocomplete="username"></div>
@@ -1318,8 +1453,17 @@ tr:hover td { background:rgba(0,212,255,.02); }
           <option value="FA">🔓 Free Access (FA)</option>
           <option value="WL">🔒 WhiteList (WL)</option>
         </select>
-        <button class="btn-create" onclick="createServer()">+ CRÉER</button>
       </div>
+      <div class="logo-upload-row">
+        <label class="logo-upload-label" for="server-logo">
+          <span class="logo-upload-icon">🖼️</span>
+          <span>Logo du serveur <em>(optionnel)</em></span>
+        </label>
+        <input id="server-logo" type="file" accept="image/*" onchange="previewLogo()" style="display:none">
+        <button class="btn-upload" onclick="document.getElementById('server-logo').click()">📂 Choisir une image</button>
+        <img id="logo-preview" src="" alt="preview" class="logo-preview-img" style="display:none">
+      </div>
+      <button class="btn-create" onclick="createServer()" style="width:100%;margin-top:10px">+ CRÉER LE SERVEUR</button>
     </div>
 
     <div style="margin-top:20px">
