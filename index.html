@@ -20,7 +20,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 label { font-weight:bold; margin-top:10px; display:block; }
 
-/* PANIC VISUEL */
+/* PANIC */
 .panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
 
@@ -43,6 +43,16 @@ label { font-weight:bold; margin-top:10px; display:block; }
   border-radius: 5px;
   min-width: 250px;
 }
+
+/* GLOBAL MESSAGE */
+#globalBanner {
+  display:none;
+  background:red;
+  color:white;
+  padding:15px;
+  text-align:center;
+  font-weight:bold;
+}
 </style>
 </head>
 
@@ -50,10 +60,10 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <h1 style="text-align:center;">🚓 Centre Opérationnel Elite</h1>
 
-<div id="globalBanner" style="display:none; background:red; color:white; padding:15px; text-align:center; font-weight:bold;"></div>
+<div id="globalBanner"></div>
 
 <div id="auth">
-<input id="username" placeholder="Identifiant (TR12A)">
+<input id="username" placeholder="Identifiant">
 <input id="password" type="password" placeholder="Mot de passe">
 <button onclick="register()">Créer compte</button>
 <button onclick="login()">Connexion</button>
@@ -68,9 +78,8 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <br><br>
 
-<label>Supprimer un effectif :</label>
 <select id="adminUsers"></select>
-<button onclick="deleteUser()">Supprimer</button>
+<button onclick="deleteUser()">Supprimer utilisateur</button>
 </div>
 
 <div id="app" style="display:none;">
@@ -88,6 +97,22 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
+
+<label>OPJ à bord ?</label>
+<select id="opj" onchange="toggleOPJ()">
+<option value="Non">Non</option>
+<option value="Oui">Oui</option>
+</select>
+
+<select id="opjSelect"></select>
+
+<label>Arme longue à bord ?</label>
+<select id="armeLongue" onchange="toggleArmeLongue()">
+<option value="Non">Non</option>
+<option value="Oui">Oui</option>
+</select>
+
+<select id="armeLongueSelect"></select>
 
 <label>Indicatif</label>
 <input id="indicatif">
@@ -132,7 +157,6 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <script>
 
-// FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -151,7 +175,6 @@ const db = firebase.database();
 let currentUser="";
 let isAdmin=false;
 
-// NOTIFICATIONS
 function notify(msg){
   let div=document.createElement("div");
   div.className="toast";
@@ -160,37 +183,29 @@ function notify(msg){
   setTimeout(()=>div.remove(),4000);
 }
 
-// ADMIN CHECK
-function checkAdmin(){
-  if(username.value==="admin" && password.value==="admin123"){
-    isAdmin=true;
-    adminPanel.style.display="block";
-    notify("Mode admin activé");
-  }
-}
-
-// AUTH
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@patrol.fr";
 }
 
+/* ADMIN */
+function checkAdmin(){
+  if(username.value==="admin" && password.value==="admin123"){
+    isAdmin=true;
+    adminPanel.style.display="block";
+  }
+}
+
 function register(){
-  authFirebase.createUserWithEmailAndPassword(
-    toEmail(username.value),
-    password.value
-  ).then(()=>{
+  authFirebase.createUserWithEmailAndPassword(toEmail(username.value), password.value)
+  .then(()=>{
     db.ref("users/"+username.value).set({online:true});
-    notify("Compte créé");
   }).catch(e=>error.innerText=e.message);
 }
 
 function login(){
   checkAdmin();
-
-  authFirebase.signInWithEmailAndPassword(
-    toEmail(username.value),
-    password.value
-  ).catch(e=>error.innerText=e.message);
+  authFirebase.signInWithEmailAndPassword(toEmail(username.value), password.value)
+  .catch(e=>error.innerText=e.message);
 }
 
 function logout(){
@@ -198,7 +213,6 @@ function logout(){
   authFirebase.signOut().then(()=>location.reload());
 }
 
-// AUTH STATE
 authFirebase.onAuthStateChanged(user=>{
   if(user){
     currentUser=username.value;
@@ -211,25 +225,34 @@ authFirebase.onAuthStateChanged(user=>{
     loadUsers();
     listenPatrols();
     listenTN();
-    checkAdmin();
+    listenGlobalMessage();
   }
 });
 
-// USERS ONLINE
+/* USERS */
 function loadUsers(){
   db.ref("users").on("value", snap=>{
     let data=snap.val()||{};
 
     effectifs.innerHTML="";
+    opjSelect.innerHTML="";
+    armeLongueSelect.innerHTML="";
     adminUsers.innerHTML="";
 
     Object.entries(data).forEach(([u,val])=>{
       if(val && val.online){
 
         let o=document.createElement("option");
-        o.value=u;
-        o.textContent=u;
+        o.value=u;o.textContent=u;
         effectifs.appendChild(o);
+
+        let o2=document.createElement("option");
+        o2.value=u;o2.textContent=u;
+        opjSelect.appendChild(o2);
+
+        let o3=document.createElement("option");
+        o3.value=u;o3.textContent=u;
+        armeLongueSelect.appendChild(o3);
 
         if(isAdmin){
           let oa=document.createElement("option");
@@ -242,41 +265,16 @@ function loadUsers(){
   });
 }
 
-// ADMIN DELETE USER
-function deleteUser(){
-  if(!isAdmin) return;
-
-  let u=adminUsers.value;
-  db.ref("users/"+u).remove();
-  notify("Utilisateur supprimé");
+/* TOGGLES */
+function toggleOPJ(){
+  opjSelect.style.display = opj.value==="Oui" ? "block":"none";
 }
 
-// GLOBAL MESSAGE
-function sendGlobalMessage(){
-  if(!isAdmin) return;
-
-  let msg=adminMessage.value;
-
-  db.ref("globalMessage").set({text:msg,time:Date.now()});
-
-  playSound();
+function toggleArmeLongue(){
+  armeLongueSelect.style.display = armeLongue.value==="Oui" ? "block":"none";
 }
 
-// DISPLAY GLOBAL MESSAGE
-db.ref("globalMessage").on("value", snap=>{
-  let data=snap.val();
-
-  if(data){
-    globalBanner.style.display="block";
-    globalBanner.innerText=data.text;
-
-    setTimeout(()=>{
-      globalBanner.style.display="none";
-    },10000);
-  }
-});
-
-// ADD PATROL
+/* ADD PATROL */
 function addPatrol(){
 
   let eff=[...effectifs.selectedOptions].map(o=>o.value);
@@ -286,13 +284,17 @@ function addPatrol(){
     vehicule:vehicule.value,
     effectifs:eff,
     statut:statut.value,
+    opj:opj.value,
+    opjEffectif: opj.value==="Oui" ? opjSelect.value : null,
+    armeLongue:armeLongue.value,
+    armeEffectif: armeLongue.value==="Oui" ? armeLongueSelect.value : null,
     panic:false
   });
 
   notify("Patrouille créée");
 }
 
-// LIST PATROLS
+/* RENDER */
 let patrols={};
 
 function listenPatrols(){
@@ -307,17 +309,24 @@ function render(){
 
   Object.entries(patrols).forEach(([id,p])=>{
 
-    let tr=document.createElement("tr");
+    let color="#22c55e";
+    if(p.statut==="Indisponible") color="#ef4444";
+    if(p.statut==="Sur intervention") color="#f97316";
+    if(p.statut==="En procédure") color="#3b82f6";
 
+    let tr=document.createElement("tr");
     if(p.panic) tr.classList.add("panic");
+
+    let opjText = p.opj==="Oui" ? "OPJ: Oui ("+p.opjEffectif+")" : "OPJ: Non";
+    let armeText = p.armeLongue==="Oui" ? "Arme: Oui ("+p.armeEffectif+")" : "Arme: Non";
 
     tr.innerHTML=`
 <td>${p.indicatif||""}</td>
 <td>${p.vehicule||""}</td>
-<td>${(p.effectifs||[]).join(", ")}</td>
+<td>${(p.effectifs||[]).join(", ")}<br>${opjText}<br>${armeText}</td>
 
 <td>
-<select onchange="updateStatus('${id}',this.value)">
+<select onchange="updateStatus('${id}',this.value)" style="background:${color};color:white;">
 <option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
 <option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
 <option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
@@ -329,7 +338,6 @@ function render(){
 <button onclick="deletePatrol('${id}')">Supprimer</button>
 </td>
 `;
-
     list.appendChild(tr);
   });
 }
@@ -338,19 +346,45 @@ function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
 }
 
-// DELETE PATROL
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// TN
-function setTN(){
-  db.ref("tn").set(currentUser);
+/* ADMIN DELETE USER */
+function deleteUser(){
+  if(!isAdmin) return;
+  db.ref("users/"+adminUsers.value).remove();
 }
 
-function removeTN(){
-  db.ref("tn").remove();
+/* GLOBAL MESSAGE */
+function sendGlobalMessage(){
+  if(!isAdmin) return;
+
+  db.ref("globalMessage").set({
+    text: adminMessage.value,
+    time: Date.now()
+  });
+
+  playSound();
 }
+
+function listenGlobalMessage(){
+  db.ref("globalMessage").on("value", snap=>{
+    let data=snap.val();
+    if(data){
+      globalBanner.style.display="block";
+      globalBanner.innerText=data.text;
+
+      setTimeout(()=>{
+        globalBanner.style.display="none";
+      },10000);
+    }
+  });
+}
+
+/* TN */
+function setTN(){ db.ref("tn").set(currentUser); }
+function removeTN(){ db.ref("tn").remove(); }
 
 function listenTN(){
   db.ref("tn").on("value", snap=>{
@@ -358,7 +392,7 @@ function listenTN(){
   });
 }
 
-// PANIC SOUND
+/* SOUND */
 function playSound(){
   let ctx=new AudioContext();
   let osc=ctx.createOscillator();
@@ -368,11 +402,10 @@ function playSound(){
   setTimeout(()=>osc.stop(),300);
 }
 
-function panic(){
-  notify("PANIC déclenché");
-}
+/* PANIC */
+function panic(){ notify("PANIC"); }
 
-// DISPATCH
+/* DISPATCH */
 function dispatch(){
   playSound();
   notify("Dispatch");
