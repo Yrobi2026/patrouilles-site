@@ -9,14 +9,53 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <style>
-body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
-input, select { width:100%; padding:6px; margin-top:5px; }
-button { padding:8px; margin-top:10px; cursor:pointer; }
+body {
+  font-family: Arial;
+  background:#0f172a;
+  color:white;
+  margin:20px;
+  font-size:16px;
+}
 
-table { width:100%; background:white; color:black; border-collapse:collapse; margin-top:20px; }
-th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+h1 { font-size:28px; }
+h2 { font-size:24px; }
+h3 { font-size:20px; }
 
-.panic { animation:blink 1s infinite; background:red !important; color:white; }
+input, select {
+  width:100%;
+  padding:6px;
+  margin-top:5px;
+  font-size:14px;
+}
+
+button {
+  padding:8px;
+  margin-top:10px;
+  cursor:pointer;
+  font-size:14px;
+}
+
+table {
+  width:100%;
+  background:white;
+  color:black;
+  border-collapse:collapse;
+  margin-top:20px;
+  font-size:15px;
+}
+
+th, td {
+  border:1px solid #ccc;
+  padding:8px;
+  text-align:center;
+}
+
+.panic {
+  animation:blink 1s infinite;
+  background:red !important;
+  color:white;
+}
+
 @keyframes blink { 50% { opacity:0.3; } }
 
 #notifications {
@@ -24,6 +63,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
   bottom: 20px;
   right: 20px;
 }
+
 .toast {
   background:#1e293b;
   padding:10px;
@@ -49,6 +89,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <body>
 
 <h2>Connexion</h2>
+
 <div id="auth">
 <input id="username" placeholder="Identifiant">
 <input id="password" type="password" placeholder="Mot de passe">
@@ -60,6 +101,9 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <div id="app" style="display:none;">
 
 <button onclick="logout()">Déconnexion</button>
+
+<button onclick="setTN()">Se définir TN</button>
+<button onclick="removeTN()">Retirer TN</button>
 
 <h3>Créer patrouille</h3>
 
@@ -117,12 +161,10 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <div id="adminPanel" style="display:none; background:#1e293b; padding:10px; margin-top:20px;">
 <h3>👑 Admin Panel</h3>
 
-<h4>Utilisateurs</h4>
 <ul id="userList"></ul>
 
-<h4>Message global</h4>
-<input id="adminMessage" placeholder="Message">
-<button onclick="sendGlobalMessage()">Envoyer</button>
+<input id="adminMessage" placeholder="Message global">
+<button onclick="sendGlobalMessage()">Envoyer message</button>
 
 </div>
 
@@ -161,7 +203,7 @@ function notify(msg){
   setTimeout(()=>div.remove(),4000);
 }
 
-// EMAIL CONVERSION
+// EMAIL
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@patrol.fr";
 }
@@ -208,12 +250,10 @@ authFirebase.onAuthStateChanged(user=>{
     auth.style.display="none";
     app.style.display="block";
 
-    if(isAdmin){
-      adminPanel.style.display="block";
-      loadUsersAdmin();
-    }
+    if(isAdmin) adminPanel.style.display="block";
 
     loadUsers();
+    loadAdminUsers();
     listenPatrols();
     listenGlobalNotif();
   }
@@ -231,8 +271,8 @@ function loadUsers(){
     Object.keys(data).forEach(u=>{
       let o=document.createElement("option");
       o.value=u;o.textContent=u;
-      effectifs.appendChild(o);
 
+      effectifs.appendChild(o);
       armeEffectif.appendChild(o.cloneNode(true));
       opjList.appendChild(o.cloneNode(true));
     });
@@ -240,17 +280,14 @@ function loadUsers(){
 }
 
 // ADMIN USERS
-function loadUsersAdmin(){
+function loadAdminUsers(){
   db.ref("users").on("value", snap=>{
     let data=snap.val()||{};
     userList.innerHTML="";
 
     Object.keys(data).forEach(u=>{
       let li=document.createElement("li");
-      li.innerHTML=`
-      ${u}
-      <button onclick="deleteUser('${u}')">Supprimer</button>
-      `;
+      li.innerHTML=`${u} <button onclick="deleteUser('${u}')">Supprimer</button>`;
       userList.appendChild(li);
     });
   });
@@ -309,10 +346,7 @@ function render(){
   Object.entries(patrols).forEach(([id,p])=>{
 
     let tr=document.createElement("tr");
-
     if(p.panic) tr.classList.add("panic");
-
-    let statut=p.statut||"Disponible";
 
     tr.innerHTML=`
 <td>${p.indicatif}</td>
@@ -321,10 +355,10 @@ function render(){
 
 <td>
 <select onchange="updateStatus('${id}',this.value)">
-<option ${statut==="Disponible"?"selected":""}>Disponible</option>
-<option ${statut==="Indisponible"?"selected":""}>Indisponible</option>
-<option ${statut==="Sur intervention"?"selected":""}>Sur intervention</option>
-<option ${statut==="En procédure"?"selected":""}>En procédure</option>
+<option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
+<option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
+<option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
+<option ${p.statut==="En procédure"?"selected":""}>En procédure</option>
 </select>
 </td>
 
@@ -355,19 +389,54 @@ function editPatrol(id){
   db.ref("patrols/"+id).update({indicatif,vehicule,mission,statut});
 }
 
-// DELETE PATROL
+// DELETE
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// PANIC
+// PANIC (2 tons)
 function panic(){
-  let ctx=new AudioContext();
-  let osc=ctx.createOscillator();
-  osc.frequency.value=800;
-  osc.connect(ctx.destination);
-  osc.start();
-  setTimeout(()=>osc.stop(),2500);
+
+  let ctx=new (window.AudioContext || window.webkitAudioContext)();
+
+  let osc1=ctx.createOscillator();
+  let osc2=ctx.createOscillator();
+  let gain=ctx.createGain();
+
+  gain.gain.value=0.2;
+
+  osc1.connect(gain);
+  osc2.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc1.start();
+  osc2.start();
+
+  let duration=2500;
+  let start=ctx.currentTime;
+
+  function loop(){
+    let t=ctx.currentTime-start;
+
+    if(t<duration/2){
+      osc1.frequency.setValueAtTime(700,ctx.currentTime);
+      osc2.frequency.setValueAtTime(1100,ctx.currentTime);
+    } else {
+      osc1.frequency.setValueAtTime(1100,ctx.currentTime);
+      osc2.frequency.setValueAtTime(700,ctx.currentTime);
+    }
+
+    if(t<duration){
+      requestAnimationFrame(loop);
+    }
+  }
+
+  loop();
+
+  setTimeout(()=>{
+    osc1.stop();
+    osc2.stop();
+  },duration);
 
   notify("🚨 PANIC");
 }
@@ -384,28 +453,35 @@ function dispatch(){
   notify("📢 DISPATCH");
 }
 
+// TN
+function setTN(){
+  db.ref("tn").set(currentUser);
+  notify("Vous êtes TN");
+}
+
+function removeTN(){
+  db.ref("tn").remove();
+  notify("TN retiré");
+}
+
 // GLOBAL NOTIF
 function sendGlobalMessage(){
   if(!isAdmin) return;
 
-  let msg=adminMessage.value;
-
   db.ref("globalNotif").set({
-    message:msg,
+    message:adminMessage.value,
     time:Date.now()
   });
 
   notify("Message envoyé");
 }
 
-// LISTEN GLOBAL
 function listenGlobalNotif(){
   db.ref("globalNotif").on("value", snap=>{
     let d=snap.val();
     if(d){
       globalNotif.innerText=d.message;
       globalNotif.style.display="block";
-
       setTimeout(()=>globalNotif.style.display="none",5000);
     }
   });
