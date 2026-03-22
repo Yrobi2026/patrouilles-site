@@ -10,29 +10,38 @@
 
 <style>
 body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
-h1 { text-align:center; }
 
-.top { display:flex; justify-content:space-between; }
+h1 { text-align:center; }
 
 label { display:block; margin-top:10px; font-weight:bold; }
 
 input, select { width:100%; padding:6px; margin-top:5px; }
 
-button { padding:8px; margin:5px; cursor:pointer; }
+button { padding:8px; margin-top:10px; cursor:pointer; }
 
 table { width:100%; background:white; color:black; border-collapse:collapse; margin-top:20px; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 .panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
-
-.panel { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 </style>
 </head>
 
 <body>
 
-<div class="top">
+<h1>🚓 Centre Opérationnel Elite</h1>
+
+<div id="auth">
+<input id="username" placeholder="Identifiant (TR12A)">
+<input id="password" type="password" placeholder="Mot de passe">
+<button onclick="register()">Créer compte</button>
+<button onclick="login()">Connexion</button>
+<p id="error" style="color:red;"></p>
+</div>
+
+<div id="app" style="display:none;">
+
+<div style="display:flex; justify-content:space-between;">
 <div id="tnDisplay">TN : Aucun</div>
 <div>
 <button onclick="setTN()">Se définir TN</button>
@@ -41,34 +50,17 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 </div>
 </div>
 
-<h1>🚓 Centre Opérationnel Elite</h1>
+<h3>Créer une patrouille</h3>
 
-<div id="auth">
-<input id="username" placeholder="Identifiant (TR12A)">
-<input id="password" type="password" placeholder="Mot de passe">
-<button onclick="register()">Créer</button>
-<button onclick="login()">Connexion</button>
-<p id="error" style="color:red;"></p>
-</div>
-
-<div id="app" style="display:none;">
-
-<h3>Créer / Modifier patrouille</h3>
-
-<div class="panel">
-
-<div>
-<label>Indicatif (ex: TV-12-A)</label>
+<label>Indicatif</label>
 <input id="indicatif">
 
-<label>Véhicule (ex: Peugeot 5008)</label>
+<label>Véhicule</label>
 <input id="vehicule">
 
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
-</div>
 
-<div>
 <label>Arme longue</label>
 <select id="arme">
 <option>Non</option>
@@ -91,13 +83,10 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <option>Sur intervention</option>
 <option>En procédure</option>
 </select>
-</div>
-
-</div>
 
 <button onclick="addPatrol()">Ajouter patrouille</button>
 
-<h3>Patrouilles actives</h3>
+<h3>Patrouilles</h3>
 
 <table>
 <thead>
@@ -105,21 +94,23 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <th>Indicatif</th>
 <th>Véhicule</th>
 <th>Effectifs</th>
-<th>Mission</th>
 <th>Statut</th>
-<th>Action</th>
+<th>Actions</th>
 </tr>
 </thead>
 <tbody id="list"></tbody>
 </table>
 
-<button onclick="panic()" style="background:red;">🚨 PANIC</button>
-<button onclick="dispatch()" style="background:orange;">📢 DISPATCH</button>
+<br>
+
+<button onclick="panic()" style="background:red;color:white;">🚨 PANIC</button>
+<button onclick="dispatch()" style="background:orange;color:white;">📢 DISPATCH</button>
 
 </div>
 
 <script>
 
+// 🔥 CONFIG FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -135,38 +126,36 @@ firebase.initializeApp(firebaseConfig);
 const authFirebase = firebase.auth();
 const db = firebase.database();
 
-let currentUser = null;
-let patrols = {};
-let users = {};
+let currentUser = "";
 
-// 🔐 IDENTIFIANT → EMAIL
+// 🔁 EMAIL CLEAN
 function toEmail(u){
-  let clean = u.toLowerCase().replace(/[^a-z0-9]/g,"");
-  return clean + "@patrol.fr";
+  return u.toLowerCase().replace(/[^a-z0-9]/g,"") + "@patrol.fr";
 }
 
-// AUTH
+// 🔐 AUTH
 function register(){
-  let email = toEmail(username.value);
-  authFirebase.createUserWithEmailAndPassword(email, password.value)
-  .then(()=>{
+  authFirebase.createUserWithEmailAndPassword(
+    toEmail(username.value),
+    password.value
+  ).then(()=>{
     db.ref("users/"+username.value).set(true);
     error.innerText="Compte créé";
-  })
-  .catch(e=>error.innerText=e.message);
+  }).catch(e=>error.innerText=e.message);
 }
 
 function login(){
-  let email = toEmail(username.value);
-  authFirebase.signInWithEmailAndPassword(email, password.value)
-  .catch(e=>error.innerText=e.message);
+  authFirebase.signInWithEmailAndPassword(
+    toEmail(username.value),
+    password.value
+  ).catch(e=>error.innerText=e.message);
 }
 
 function logout(){
-  authFirebase.signOut();
-  location.reload();
+  authFirebase.signOut().then(()=>location.reload());
 }
 
+// SESSION
 authFirebase.onAuthStateChanged(user=>{
   if(user){
     currentUser = username.value;
@@ -181,9 +170,9 @@ authFirebase.onAuthStateChanged(user=>{
 // USERS
 function loadUsers(){
   db.ref("users").on("value", snap=>{
-    users = snap.val() || {};
+    let data = snap.val() || {};
     effectifs.innerHTML="";
-    Object.keys(users).forEach(u=>{
+    Object.keys(data).forEach(u=>{
       let o=document.createElement("option");
       o.value=u;
       o.textContent=u;
@@ -192,13 +181,8 @@ function loadUsers(){
   });
 }
 
-// 🚓 FIX AJOUT PATROUILLE
+// CREATE PATROL
 function addPatrol(){
-
-  if(!indicatif.value || !vehicule.value){
-    alert("Remplis indicatif + véhicule");
-    return;
-  }
 
   let eff = Array.from(effectifs.selectedOptions).map(o=>o.value);
 
@@ -206,19 +190,19 @@ function addPatrol(){
     indicatif: indicatif.value,
     vehicule: vehicule.value,
     effectifs: eff,
-    mission: mission.value || "",
+    arme: arme.value,
+    opj: opj.value,
+    mission: mission.value,
     statut: statut.value,
     panic:false
-  })
-  .then(()=>{
-    // reset champs
-    indicatif.value="";
-    vehicule.value="";
-    mission.value="";
   });
+
+  indicatif.value="";
+  vehicule.value="";
+  mission.value="";
 }
 
-// LISTENER
+// LISTEN
 function listenPatrols(){
   db.ref("patrols").on("value", snap=>{
     patrols = snap.val() || {};
@@ -226,10 +210,20 @@ function listenPatrols(){
   });
 }
 
+let patrols = {};
+
 // RENDER
 function render(){
   list.innerHTML="";
+
   Object.entries(patrols).forEach(([id,p])=>{
+
+    let color = "white";
+    if(p.statut==="Disponible") color="#22c55e";
+    if(p.statut==="Indisponible") color="#ef4444";
+    if(p.statut==="Sur intervention") color="#f97316";
+    if(p.statut==="En procédure") color="#3b82f6";
+
     let tr=document.createElement("tr");
 
     if(p.panic) tr.classList.add("panic");
@@ -238,25 +232,46 @@ function render(){
 <td>${p.indicatif}</td>
 <td>${p.vehicule}</td>
 <td>${(p.effectifs||[]).join(", ")}</td>
-<td>${p.mission}</td>
-<td>
-<select onchange="updateStatus('${id}', this.value)">
-<option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
-<option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
-<option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
-<option ${p.statut==="En procédure"?"selected":""}>En procédure</option>
-</select>
+
+<td style="background:${color}; color:white;">
+${p.statut}
 </td>
-<td><button onclick="deletePatrol('${id}')">Supprimer</button></td>
+
+<td>
+<button onclick="editPatrol('${id}')">Modifier</button>
+<button onclick="deletePatrol('${id}')">Supprimer</button>
+</td>
 `;
+
     list.appendChild(tr);
   });
 }
 
-function updateStatus(id,val){
-  db.ref("patrols/"+id).update({statut:val});
+// EDIT
+function editPatrol(id){
+  let p = patrols[id];
+
+  let indicatif = prompt("Indicatif :", p.indicatif);
+  let vehicule = prompt("Véhicule :", p.vehicule);
+  let mission = prompt("Mission :", p.mission);
+
+  let statut = prompt(
+`Statut :
+Disponible
+Indisponible
+Sur intervention
+En procédure`,
+p.statut);
+
+  db.ref("patrols/"+id).update({
+    indicatif,
+    vehicule,
+    mission,
+    statut
+  });
 }
 
+// DELETE
 function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
@@ -266,7 +281,6 @@ function panic(){
   Object.entries(patrols).forEach(([id,p])=>{
     if((p.effectifs||[]).includes(currentUser)){
       db.ref("patrols/"+id).update({panic:true});
-      beep(600);
       setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
     }
   });
@@ -277,7 +291,7 @@ function dispatch(){
   beep(300,900);
 }
 
-// SON
+// SOUND
 function beep(duration,freq=440){
   let ctx=new AudioContext();
   let osc=ctx.createOscillator();
