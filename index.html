@@ -11,10 +11,6 @@
 <style>
 body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
 
-h1 { text-align:center; }
-
-label { display:block; margin-top:10px; font-weight:bold; }
-
 input, select { width:100%; padding:6px; margin-top:5px; }
 
 button { padding:8px; margin-top:10px; cursor:pointer; }
@@ -24,12 +20,49 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 .panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
+
+label { font-weight:bold; margin-top:10px; display:block; }
+
+/* NOTIFICATIONS */
+#notifications {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+}
+
+.toast {
+  background: #1e293b;
+  color: white;
+  padding: 10px 15px;
+  border-left: 5px solid #22c55e;
+  border-radius: 5px;
+  min-width: 250px;
+  animation: slideIn 0.3s ease, fadeOut 0.5s ease 4s forwards;
+}
+
+.toast.warning { border-left-color: orange; }
+.toast.danger { border-left-color: red; }
+.toast.info { border-left-color: #3b82f6; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; transform: translateX(100%); }
+}
+
 </style>
 </head>
 
 <body>
 
-<h1>🚓 Centre Opérationnel Elite</h1>
+<h1 style="text-align:center;">🚓 Centre Opérationnel Elite</h1>
 
 <div id="auth">
 <input id="username" placeholder="Identifiant (TR12A)">
@@ -52,11 +85,11 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <h3>Créer une patrouille</h3>
 
-<label>Indicatif (ex: TV-12-A)</label>
-<input id="indicatif" placeholder="TV-12-A">
+<label>Indicatif</label>
+<input id="indicatif">
 
-<label>Véhicule (ex: Peugeot 5008)</label>
-<input id="vehicule" placeholder="Peugeot 5008">
+<label>Véhicule</label>
+<input id="vehicule">
 
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
@@ -75,8 +108,8 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 </select>
 <input id="opjDetail" placeholder="Ex: Nom Prénom" style="display:none;">
 
-<label>Mission (ex: Police secours)</label>
-<input id="mission" placeholder="Police secours">
+<label>Mission</label>
+<input id="mission">
 
 <label>Statut</label>
 <select id="statut">
@@ -108,9 +141,12 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 </div>
 
+<!-- NOTIFICATIONS -->
+<div id="notifications"></div>
+
 <script>
 
-// CONFIG FIREBASE
+// FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -128,7 +164,20 @@ const db = firebase.database();
 
 let currentUser="";
 
-// EMAIL CLEAN
+// NOTIFICATIONS
+function notify(message, type="info"){
+  let container = document.getElementById("notifications");
+
+  let div = document.createElement("div");
+  div.className = "toast " + type;
+  div.innerText = message;
+
+  container.appendChild(div);
+
+  setTimeout(()=>div.remove(),5000);
+}
+
+// EMAIL CONVERSION
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"") + "@patrol.fr";
 }
@@ -140,7 +189,7 @@ function register(){
     password.value
   ).then(()=>{
     db.ref("users/"+username.value).set(true);
-    error.innerText="Compte créé";
+    notify("Compte créé","info");
   }).catch(e=>error.innerText=e.message);
 }
 
@@ -180,7 +229,7 @@ function loadUsers(){
   });
 }
 
-// TOGGLE INPUTS
+// TOGGLES
 function toggleArme(){
   armeDetail.style.display = arme.value==="Oui" ? "block":"none";
 }
@@ -188,9 +237,8 @@ function toggleOPJ(){
   opjDetail.style.display = opj.value==="Oui" ? "block":"none";
 }
 
-// ADD PATROL
+// ADD
 function addPatrol(){
-
   let eff = Array.from(effectifs.selectedOptions).map(o=>o.value);
 
   db.ref("patrols").push({
@@ -204,6 +252,7 @@ function addPatrol(){
     panic:false
   });
 
+  notify("Patrouille créée","info");
 }
 
 // LISTEN
@@ -256,6 +305,7 @@ function render(){
 
 function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
+  notify("Statut mis à jour : "+val,"info");
 }
 
 // EDIT
@@ -267,9 +317,7 @@ function editPatrol(id){
   let mission=prompt("Mission",p.mission);
   let statut=prompt("Statut",p.statut);
 
-  db.ref("patrols/"+id).update({
-    indicatif,vehicule,mission,statut
-  });
+  db.ref("patrols/"+id).update({indicatif,vehicule,mission,statut});
 }
 
 // DELETE
@@ -277,7 +325,7 @@ function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// PANIC (ALARME 5 SEC)
+// PANIC
 function panic(){
   Object.entries(patrols).forEach(([id,p])=>{
     if((p.effectifs||[]).includes(currentUser)){
@@ -286,26 +334,59 @@ function panic(){
       setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
     }
   });
+  notify("🚨 PANIC déclenché","danger");
 }
 
-// ALARME SON 5 SEC
+// SIRENE 2.5S
 function playAlarm(){
-  let ctx=new AudioContext();
-  let osc=ctx.createOscillator();
-  osc.frequency.value=1000;
-  osc.connect(ctx.destination);
-  osc.start();
-  setTimeout(()=>osc.stop(),5000);
+  let ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let duration = 2500;
+  let startTime = ctx.currentTime;
+
+  let osc1 = ctx.createOscillator();
+  let osc2 = ctx.createOscillator();
+
+  osc1.type = "sine";
+  osc2.type = "sine";
+
+  let gain = ctx.createGain();
+  gain.gain.value = 0.2;
+
+  osc1.connect(gain);
+  osc2.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc1.start();
+  osc2.start();
+
+  let interval = setInterval(()=>{
+    let t = ctx.currentTime - startTime;
+
+    if(t < duration/2){
+      osc1.frequency.setValueAtTime(800, ctx.currentTime);
+      osc2.frequency.setValueAtTime(1200, ctx.currentTime);
+    } else {
+      osc1.frequency.setValueAtTime(1200, ctx.currentTime);
+      osc2.frequency.setValueAtTime(800, ctx.currentTime);
+    }
+  },100);
+
+  setTimeout(()=>{
+    osc1.stop();
+    osc2.stop();
+    clearInterval(interval);
+  }, duration);
 }
 
 // DISPATCH
 function dispatch(){
   beep(300,900);
+  notify("📢 Dispatch envoyé","warning");
 }
 
 function beep(duration,freq){
-  let ctx=new AudioContext();
-  let osc=ctx.createOscillator();
+  let ctx = new AudioContext();
+  let osc = ctx.createOscillator();
   osc.frequency.value=freq;
   osc.connect(ctx.destination);
   osc.start();
@@ -313,8 +394,15 @@ function beep(duration,freq){
 }
 
 // TN
-function setTN(){ db.ref("tn").set(currentUser); }
-function removeTN(){ db.ref("tn").remove(); }
+function setTN(){
+  db.ref("tn").set(currentUser);
+  notify("Vous êtes TN","info");
+}
+
+function removeTN(){
+  db.ref("tn").remove();
+  notify("TN retiré","warning");
+}
 
 function listenTN(){
   db.ref("tn").on("value", snap=>{
