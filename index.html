@@ -2,245 +2,359 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Gestion Patrouilles GTA RP</title>
+<title>Centre OP PRO</title>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <style>
-body {
-    font-family: Arial;
-    background: #0f172a;
-    color: white;
-    margin: 0;
+body{margin:0;background:#0f172a;color:white;font-family:Arial}
+.container{padding:20px}
+.card{background:#1e293b;padding:15px;border-radius:10px;margin-bottom:20px}
+.hidden{display:none}
+input,select,button{padding:8px;margin:5px}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #334155;padding:8px;text-align:center}
+
+.status-disponible{background:green}
+.status-indisponible{background:red}
+.status-intervention{background:orange}
+.status-procedure{background:blue}
+
+.notification{
+position:fixed;bottom:20px;right:20px;
+background:#111827;padding:10px;border-radius:8px;display:none
 }
 
-.container {
-    padding: 20px;
+#tnBox{
+position:fixed;top:10px;left:10px;background:#22c55e;padding:10px;border-radius:8px
 }
 
-.hidden { display: none; }
+.panicFlash{animation:flash 0.5s infinite}
+@keyframes flash{0%{background:red}50%{background:black}100%{background:red}}
 
-input, select, button {
-    padding: 8px;
-    margin: 5px;
-}
-
-button {
-    cursor: pointer;
-}
-
-.card {
-    background: #1e293b;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-td, th {
-    border: 1px solid #334155;
-    padding: 8px;
-    text-align: center;
-}
-
-.status-disponible { background: green; }
-.status-indisponible { background: red; }
-.status-intervention { background: orange; }
-.status-procedure { background: blue; }
-
-.notification {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #111827;
-    padding: 10px 15px;
-    border-radius: 8px;
-    display: none;
+.adminPanel{
+position:fixed;top:0;right:0;width:300px;height:100%;
+background:#020617;padding:10px;overflow:auto
 }
 </style>
 </head>
 
 <body>
 
+<div id="tnBox" class="hidden"></div>
+
 <div class="container">
 
 <!-- LOGIN -->
-<div id="loginBox" class="card">
-    <h2>Connexion</h2>
-    <input id="username" placeholder="Identifiant">
-    <input id="password" type="password" placeholder="Mot de passe">
-    <button onclick="login()">Connexion</button>
+<div id="auth" class="card">
+<h2>Connexion</h2>
+<input id="username" placeholder="Identifiant">
+<input id="password" type="password" placeholder="Mot de passe">
+<br>
+<button onclick="register()">Créer</button>
+<button onclick="login()">Connexion</button>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
 
-    <h2>Centre de gestion patrouilles</h2>
+<button onclick="logout()">Déconnexion</button>
+<button onclick="panic()">🚨 PANIC</button>
+<button onclick="dispatch()">📢 DISPATCH</button>
+<button onclick="setTN()">TN</button>
+<button onclick="removeTN()">Retirer TN</button>
 
-    <button onclick="logout()">Déconnexion</button>
+<div class="card">
+<h3>Recherche</h3>
+<input id="search" oninput="loadUsers()">
+<ul id="users"></ul>
+</div>
 
-    <!-- CREATION -->
-    <div class="card">
-        <h3>Créer une patrouille</h3>
+<div class="card">
+<h3>Créer patrouille</h3>
 
-        <input id="indicatif" placeholder="Indicatif">
-        <input id="vehicule" placeholder="Véhicule">
-        <input id="mission" placeholder="Mission">
+<input id="indicatif" placeholder="Indicatif">
+<input id="vehicule" placeholder="Véhicule">
+<input id="mission" placeholder="Mission">
 
-        <br>
+<select id="status">
+<option>Disponible</option>
+<option>Indisponible</option>
+<option>Sur intervention</option>
+<option>En procédure</option>
+</select>
 
-        <label>Statut</label>
-        <select id="status">
-            <option>Disponible</option>
-            <option>Indisponible</option>
-            <option>Sur intervention</option>
-            <option>En procédure</option>
-        </select>
+<br>
 
-        <br>
+<label>OPJ</label>
+<select id="opj"></select>
 
-        <button onclick="createPatrol()">Créer</button>
-    </div>
+<br>
 
-    <!-- TABLE -->
-    <div class="card">
-        <h3>Patrouilles</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Indicatif</th>
-                    <th>Véhicule</th>
-                    <th>Mission</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="patrolTable"></tbody>
-        </table>
-    </div>
+<label>Arme longue</label>
+<select id="weapon"></select>
+
+<br>
+
+<button onclick="createPatrol()">Créer</button>
+</div>
+
+<div class="card">
+<h3>Patrouilles</h3>
+<table>
+<thead>
+<tr>
+<th>Indicatif</th>
+<th>Véhicule</th>
+<th>Mission</th>
+<th>Status</th>
+<th>OPJ</th>
+<th>Arme longue</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
 
 </div>
 
 <div id="notif" class="notification"></div>
 
+<div id="adminPanel" class="adminPanel hidden">
+<h3>ADMIN</h3>
+<button onclick="closeAdmin()">Fermer</button>
+<input id="globalMsg" placeholder="Annonce globale">
+<button onclick="sendGlobal()">Envoyer</button>
+<ul id="adminUsers"></ul>
 </div>
 
 <script>
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
-  authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
-  databaseURL: "https://gestion-patrouilles-5503d-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "gestion-patrouilles-5503d",
-  storageBucket: "gestion-patrouilles-5503d.firebasestorage.app",
-  messagingSenderId: "482427611880",
-  appId: "1:482427611880:web:b5df2a72fc41194784375d"
+apiKey:"AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
+authDomain:"gestion-patrouilles-5503d.firebaseapp.com",
+databaseURL:"https://gestion-patrouilles-5503d-default-rtdb.europe-west1.firebasedatabase.app",
+projectId:"gestion-patrouilles-5503d",
+storageBucket:"gestion-patrouilles-5503d.firebasestorage.app",
+messagingSenderId:"482427611880",
+appId:"1:482427611880:web:b5df2a72fc41194784375d"
 };
 
 firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth();
+const db=firebase.database();
 
-const auth = firebase.auth();
-const db = firebase.database();
+let user="";
+let isAdmin=false;
 
-/* LOGIN SIMPLE (IDENTIFIANT → EMAIL) */
-function login() {
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
-
-    const email = username + "@patrol.fr";
-
-    auth.signInWithEmailAndPassword(email, password)
-    .then(() => {
-        document.getElementById("loginBox").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-        listenPatrols();
-        showNotif("Connexion réussie");
-    })
-    .catch(err => alert(err.message));
+/* REGISTER */
+function register(){
+const u=username.value;
+const p=password.value;
+auth.createUserWithEmailAndPassword(u+"@patrol.fr",p)
+.then(()=>{
+db.ref("users/"+u).set({online:true});
+showNotif("Compte créé");
+});
 }
 
-function logout() {
-    auth.signOut();
-    location.reload();
+/* LOGIN */
+function login(){
+const u=username.value;
+const p=password.value;
+
+auth.signInWithEmailAndPassword(u+"@patrol.fr",p)
+.then(()=>{
+user=u;
+isAdmin=(u==="admin");
+
+document.getElementById("auth").classList.add("hidden");
+document.getElementById("app").classList.remove("hidden");
+
+db.ref("users/"+u).update({online:true});
+
+listen();
+loadUsers();
+listenTN();
+listenAnnouncements();
+});
 }
 
-/* CREATION PATROUILLE */
-function createPatrol() {
-    const data = {
-        indicatif: indicatif.value,
-        vehicule: vehicule.value,
-        mission: mission.value,
-        status: status.value
-    };
-
-    db.ref("patrouilles").push(data);
-    showNotif("Patrouille créée");
+/* LOGOUT */
+function logout(){
+db.ref("users/"+user).update({online:false});
+auth.signOut();
+location.reload();
 }
 
-/* AFFICHAGE */
-function listenPatrols() {
-    db.ref("patrouilles").on("value", snap => {
-        const table = document.getElementById("patrolTable");
-        table.innerHTML = "";
+/* USERS */
+function loadUsers(){
+db.ref("users").once("value",snap=>{
+const list=document.getElementById("users");
+const opj=document.getElementById("opj");
+const weapon=document.getElementById("weapon");
 
-        snap.forEach(child => {
-            const p = child.val();
-            const id = child.key;
+list.innerHTML="";
+opj.innerHTML="";
+weapon.innerHTML="";
 
-            const tr = document.createElement("tr");
+const search=document.getElementById("search").value.toLowerCase();
 
-            let colorClass = "";
-            if(p.status === "Disponible") colorClass = "status-disponible";
-            if(p.status === "Indisponible") colorClass = "status-indisponible";
-            if(p.status === "Sur intervention") colorClass = "status-intervention";
-            if(p.status === "En procédure") colorClass = "status-procedure";
+snap.forEach(c=>{
+const u=c.key;
+const d=c.val();
+if(!d.online) return;
 
-            tr.innerHTML = `
-                <td>${p.indicatif}</td>
-                <td>${p.vehicule}</td>
-                <td>${p.mission}</td>
-                <td class="${colorClass}">
-                    <select onchange="updateStatus('${id}', this.value)">
-                        <option ${p.status==="Disponible"?"selected":""}>Disponible</option>
-                        <option ${p.status==="Indisponible"?"selected":""}>Indisponible</option>
-                        <option ${p.status==="Sur intervention"?"selected":""}>Sur intervention</option>
-                        <option ${p.status==="En procédure"?"selected":""}>En procédure</option>
-                    </select>
-                </td>
-                <td>
-                    <button onclick="deletePatrol('${id}')">Supprimer</button>
-                </td>
-            `;
-
-            table.appendChild(tr);
-        });
-    });
+if(u.toLowerCase().includes(search)){
+list.innerHTML+=`<li>${u}</li>`;
+opj.innerHTML+=`<option>${u}</option>`;
+weapon.innerHTML+=`<option>${u}</option>`;
+}
+});
+});
 }
 
-/* UPDATE STATUS */
-function updateStatus(id, value) {
-    db.ref("patrouilles/" + id).update({ status: value });
-    showNotif("Statut modifié");
+/* CREATE PATROL */
+function createPatrol(){
+db.ref("patrouilles").push({
+indicatif:indicatif.value,
+vehicule:vehicule.value,
+mission:mission.value,
+status:status.value,
+opj:opj.value,
+weapon:weapon.value
+});
+}
+
+/* LIST */
+function listen(){
+db.ref("patrouilles").on("value",snap=>{
+const t=document.getElementById("table");
+t.innerHTML="";
+
+snap.forEach(c=>{
+const p=c.val();
+const id=c.key;
+
+let cls="";
+if(p.status==="Disponible")cls="status-disponible";
+if(p.status==="Indisponible")cls="status-indisponible";
+if(p.status==="Sur intervention")cls="status-intervention";
+if(p.status==="En procédure")cls="status-procedure";
+
+t.innerHTML+=`
+<tr>
+<td>${p.indicatif}</td>
+<td>${p.vehicule}</td>
+<td>${p.mission}</td>
+<td class="${cls}">
+<select onchange="updateStatus('${id}',this.value)">
+<option ${p.status==="Disponible"?"selected":""}>Disponible</option>
+<option ${p.status==="Indisponible"?"selected":""}>Indisponible</option>
+<option ${p.status==="Sur intervention"?"selected":""}>Sur intervention</option>
+<option ${p.status==="En procédure"?"selected":""}>En procédure</option>
+</select>
+</td>
+<td>${p.opj||"Non"}</td>
+<td>${p.weapon||"Non"}</td>
+<td><button onclick="del('${id}')">Supprimer</button></td>
+</tr>`;
+});
+});
+}
+
+/* STATUS */
+function updateStatus(id,val){
+db.ref("patrouilles/"+id).update({status:val});
 }
 
 /* DELETE */
-function deletePatrol(id) {
-    db.ref("patrouilles/" + id).remove();
-    showNotif("Patrouille supprimée");
+function del(id){
+db.ref("patrouilles/"+id).remove();
 }
 
-/* NOTIFICATIONS */
-function showNotif(msg) {
-    const n = document.getElementById("notif");
-    n.innerText = msg;
-    n.style.display = "block";
-    setTimeout(() => n.style.display = "none", 3000);
+/* TN */
+function setTN(){
+db.ref("tn").set(user);
 }
+
+function removeTN(){
+db.ref("tn").remove();
+}
+
+function listenTN(){
+db.ref("tn").on("value",snap=>{
+const tn=snap.val();
+const box=document.getElementById("tnBox");
+if(tn){
+box.classList.remove("hidden");
+box.innerText="TN: "+tn;
+}else box.classList.add("hidden");
+});
+}
+
+/* PANIC GLOBAL */
+function panic(){
+showNotif("PANIC GLOBAL");
+let a=new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+a.play();
+document.body.classList.add("panicFlash");
+setTimeout(()=>document.body.classList.remove("panicFlash"),90000);
+}
+
+/* DISPATCH */
+function dispatch(){
+showNotif("DISPATCH");
+let a=new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+a.play();
+}
+
+/* ANNOUNCEMENTS */
+function sendGlobal(){
+if(!isAdmin){alert("Admin uniquement");return;}
+db.ref("announcements").push({msg:globalMsg.value});
+}
+
+/* LISTEN ANNOUNCEMENTS */
+function listenAnnouncements(){
+db.ref("announcements").on("child_added",snap=>{
+showNotif(snap.val().msg);
+});
+}
+
+/* ADMIN PANEL */
+function openAdmin(){
+if(!isAdmin)return;
+document.getElementById("adminPanel").classList.remove("hidden");
+
+db.ref("users").once("value",snap=>{
+const list=document.getElementById("adminUsers");
+list.innerHTML="";
+snap.forEach(c=>{
+list.innerHTML+=`<li>${c.key} <button onclick="deleteUser('${c.key}')">X</button></li>`;
+});
+});
+}
+
+function closeAdmin(){
+document.getElementById("adminPanel").classList.add("hidden");
+}
+
+function deleteUser(u){
+db.ref("users/"+u).remove();
+}
+
+/* NOTIF */
+function showNotif(msg){
+const n=document.getElementById("notif");
+n.innerText=msg;
+n.style.display="block";
+setTimeout(()=>n.style.display="none",3000);
+}
+
 </script>
 
 </body>
