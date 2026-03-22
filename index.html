@@ -487,18 +487,18 @@
       const tr = document.createElement('tr');
       tr.className = p.panic ? 'panic-row' : '';
       tr.innerHTML = `
-        <td><span class="indicatif-badge">${p.indicatif || '—'}</span></td>
-        <td>${p.vehicule || '—'}</td>
-        <td class="effectifs-cell">${names}</td>
-        <td>
+        <td data-label="INDICATIF"><span class="indicatif-badge">${p.indicatif || '—'}</span></td>
+        <td data-label="VÉHICULE">${p.vehicule || '—'}</td>
+        <td data-label="EFFECTIFS" class="effectifs-cell">${names}</td>
+        <td data-label="STATUT">
           <select class="statut-select statut-${slugify(statut)}" onchange="changeStatut('${id}', this.value)">
             ${['Disponible','Indisponible','Sur intervention','En procédure'].map(s =>
               `<option value="${s}" ${s === statut ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
         </td>
-        <td class="meta-cell">${opjText}</td>
-        <td class="meta-cell">${armeText}</td>
-        <td>${p.mission || '—'}</td>
+        <td data-label="OPJ" class="meta-cell">${opjText}</td>
+        <td data-label="ARME" class="meta-cell">${armeText}</td>
+        <td data-label="MISSION">${p.mission || '—'}</td>
         <td class="actions-cell">
           <button class="btn-icon" onclick="triggerPanic('${id}')" title="PANIC">🚨</button>
           <button class="btn-icon" onclick="openPatrolModal('${id}')" title="Modifier">✏️</button>
@@ -1122,13 +1122,127 @@ select.form-input { appearance: none; cursor: pointer; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
 
-/* ── RESPONSIVE ── */
+/* ── SIDEBAR TOGGLE BTN (mobile only, hidden on desktop) ── */
+.sidebar-toggle-btn { display: none; }
+
+/* ── RESPONSIVE TABLETTE ── */
 @media (max-width: 900px) {
   .app-layout { grid-template-columns: 1fr; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); padding: 0; }
+  .sidebar-inner { padding: 16px; display: none; flex-direction: column; gap: 16px; }
+  .sidebar-inner.open { display: flex; }
+  .sidebar-toggle-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 12px 16px;
+    background: var(--bg3); border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent); cursor: pointer;
+    font-family: 'Orbitron', monospace; font-size: 11px;
+    font-weight: 700; letter-spacing: 2px;
+  }
+  .sidebar-toggle-btn .toggle-arrow { transition: transform 0.2s; font-size: 14px; }
+  .sidebar-toggle-btn.open .toggle-arrow { transform: rotate(180deg); }
   .modal-grid { grid-template-columns: 1fr; }
-  .modal-card { width: 95vw; }
+  .modal-card { width: 96vw; }
   .topbar-logo { font-size: 13px; }
+  .topbar-tn { display: none; }
+}
+
+/* ── RESPONSIVE MOBILE ── */
+@media (max-width: 600px) {
+
+  /* Topbar */
+  .topbar {
+    height: auto; flex-wrap: wrap;
+    padding: 8px 12px; gap: 6px;
+  }
+  .topbar-logo { font-size: 13px; letter-spacing: 1px; flex: 1; }
+  .topbar-logo svg { width: 22px !important; height: 26px !important; margin-right: 6px !important; }
+  .topbar-user { font-size: 11px; order: 3; width: 100%; padding-bottom: 2px; }
+  .topbar-sep { display: none; }
+  .btn-topbar { padding: 6px 10px; font-size: 9px; letter-spacing: 0; }
+  #dispatch-btn, #panic-btn { flex: 1; text-align: center; }
+
+  /* Auth */
+  .auth-card { width: 94vw; padding: 24px 16px; margin: 0; }
+  .auth-logo h1 { font-size: 18px; letter-spacing: 2px; }
+  .logo-svg { width: 54px !important; height: 62px !important; }
+
+  /* Admin panel */
+  #admin-panel { padding: 12px; margin: 0 12px 12px; }
+  .admin-tabs { gap: 4px; }
+  .admin-tab { padding: 6px 10px; font-size: 9px; }
+  .annonce-form { flex-direction: column; gap: 8px; }
+  .annonce-form input { width: 100%; }
+  .admin-user-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; }
+  .admin-user-actions { width: 100%; justify-content: stretch; gap: 6px; }
+  .btn-admin-action { flex: 1; text-align: center; padding: 7px 6px; }
+
+  /* Main content */
+  .main-content { padding: 12px; }
+  .page-header { flex-wrap: wrap; gap: 8px; }
+  .page-title { font-size: 15px; }
+  .btn-new { margin-left: 0; width: 100%; padding: 11px; font-size: 11px; }
+
+  /* Tableau → cartes mobile */
+  .table-wrapper { border: none; background: transparent; box-shadow: none; overflow: visible; }
+  table { display: block; }
+  thead { display: none; }
+  tbody { display: flex; flex-direction: column; gap: 10px; }
+  tbody tr {
+    display: block;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    position: relative;
+  }
+  tbody tr.panic-row { border-color: rgba(239,68,68,0.5); animation: panicBlink 0.6s ease-in-out infinite; }
+  tbody td {
+    display: flex; align-items: center;
+    padding: 5px 0 !important;
+    border-bottom: none !important;
+    font-size: 13px; gap: 8px;
+  }
+  tbody td::before {
+    content: attr(data-label);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--text3);
+    letter-spacing: 1px; min-width: 80px;
+    text-transform: uppercase; flex-shrink: 0;
+  }
+  tbody td.actions-cell {
+    justify-content: flex-end;
+    padding-top: 10px !important;
+    margin-top: 4px;
+    border-top: 1px solid var(--border) !important;
+  }
+  tbody td.actions-cell::before { display: none; }
+  .empty-row { display: block !important; text-align: center; padding: 30px 0 !important; }
+  .empty-row::before { display: none; }
+
+  /* Statut select mobile */
+  .statut-select { flex: 1; font-size: 12px; padding: 4px 6px; }
+
+  /* Modal slide-up sur mobile */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal-card {
+    width: 100%; max-height: 92dvh;
+    border-radius: 12px 12px 0 0;
+    overflow-y: auto;
+  }
+  .modal-card::before { border-radius: 12px 12px 0 0; }
+  .modal-body { padding: 14px 16px; }
+  .modal-header { padding: 14px 16px 10px; }
+  .modal-footer { padding: 12px 16px; flex-direction: column; gap: 8px; }
+  .btn-modal { width: 100%; padding: 12px; text-align: center; }
+
+  /* Notifications */
+  #notif-container { bottom: 10px; right: 10px; left: 10px; }
+  .notif { min-width: unset; max-width: 100%; font-size: 13px; }
+
+  /* Annonce banner */
+  #annonce-banner { font-size: 11px; padding: 10px 12px; letter-spacing: 1px; }
 }
 </style>
 </head>
@@ -1266,6 +1380,11 @@ select.form-input { appearance: none; cursor: pointer; }
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
+      <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()">
+        <span>👥 EFFECTIFS &amp; TRANSMISSION</span>
+        <span class="toggle-arrow">▼</span>
+      </button>
+      <div class="sidebar-inner" id="sidebar-inner">
       <!-- EFFECTIFS -->
       <div>
         <div class="sidebar-section-title">
@@ -1290,6 +1409,7 @@ select.form-input { appearance: none; cursor: pointer; }
           </div>
         </div>
       </div>
+      </div><!-- /sidebar-inner -->
     </aside>
 
     <!-- MAIN -->
@@ -1399,6 +1519,13 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'login' ? 0 : 1)));
   document.getElementById('auth-login').classList.toggle('active', tab === 'login');
   document.getElementById('auth-register').classList.toggle('active', tab === 'register');
+}
+
+function toggleSidebar() {
+  const inner = document.getElementById('sidebar-inner');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  inner.classList.toggle('open');
+  btn.classList.toggle('open');
 }
 // Sync TN sidebar display
 const obs = new MutationObserver(() => {
