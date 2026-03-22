@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Gestion Patrouilles</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+body { font-family: Arial; background:#0f172a; color:white; margin:20px; }
+h1 { text-align:center; }
+
+input, select { margin:5px; padding:6px; }
+button { padding:6px; margin:5px; cursor:pointer; }
+
+table { width:100%; background:white; color:black; border-collapse:collapse; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+
+.status-Disponible { background:green; color:white; }
+.status-Indisponible { background:red; color:white; }
+.status-Intervention { background:orange; }
+
+.panic { animation: blink 1s infinite; background:red !important; color:white; }
+@keyframes blink { 50% { opacity:0.3; } }
+</style>
+</head>
+
+<body>
+
+<h1>🚓 Gestion des Patrouilles</h1>
+
+<div id="auth">
+<h3>Connexion</h3>
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Mot de passe">
+<br>
+<button onclick="register()">Créer compte</button>
+<button onclick="login()">Connexion</button>
+</div>
+
+<div id="app" style="display:none;">
+
+<h3>Créer une patrouille</h3>
+
+<input id="indicatif" placeholder="TV-12-A">
+<input id="vehicule" placeholder="Peugeot 5008">
+
+<select id="statut">
+<option>Disponible</option>
+<option>Indisponible</option>
+<option>Sur intervention</option>
+</select>
+
+<button onclick="addPatrol()">Ajouter</button>
+
+<h3>Patrouilles actives</h3>
+
+<table>
+<thead>
+<tr>
+<th>Indicatif</th>
+<th>Véhicule</th>
+<th>Utilisateur</th>
+<th>Statut</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+
+<button onclick="panic()" style="background:red;color:white;">🚨 PANIC</button>
+
+</div>
+
+<script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
+  authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
+  databaseURL: "https://gestion-patrouilles-5503d-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "gestion-patrouilles-5503d",
+  storageBucket: "gestion-patrouilles-5503d.firebasestorage.app",
+  messagingSenderId: "482427611880",
+  appId: "1:482427611880:web:b5df2a72fc41194784375d"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.database();
+
+let currentUser = null;
+let patrols = {};
+
+auth.onAuthStateChanged(user => {
+  if(user){
+    currentUser = user.email;
+    authDiv.style.display="none";
+    app.style.display="block";
+    listenPatrols();
+  }
+});
+
+function register(){
+  auth.createUserWithEmailAndPassword(email.value, password.value)
+  .catch(e => alert(e.message));
+}
+
+function login(){
+  auth.signInWithEmailAndPassword(email.value, password.value)
+  .catch(e => alert(e.message));
+}
+
+function addPatrol(){
+  if(!indicatif.value || !vehicule.value) return alert("Remplis les champs");
+
+  db.ref("patrols").push({
+    indicatif: indicatif.value,
+    vehicule: vehicule.value,
+    user: currentUser,
+    statut: statut.value,
+    panic: false
+  });
+}
+
+function listenPatrols(){
+  db.ref("patrols").on("value", snap => {
+    patrols = snap.val() || {};
+    render();
+  });
+}
+
+function render(){
+  list.innerHTML="";
+
+  for(let id in patrols){
+    let p = patrols[id];
+    let tr = document.createElement("tr");
+
+    if(p.panic) tr.classList.add("panic");
+
+    tr.innerHTML = `
+    <td>${p.indicatif}</td>
+    <td>${p.vehicule}</td>
+    <td>${p.user}</td>
+    <td>
+      <select onchange="updateStatus('${id}', this.value)">
+        <option ${p.statut==='Disponible'?'selected':''}>Disponible</option>
+        <option ${p.statut==='Indisponible'?'selected':''}>Indisponible</option>
+        <option ${p.statut==='Sur intervention'?'selected':''}>Sur intervention</option>
+      </select>
+    </td>
+    <td>
+      <button onclick="deletePatrol('${id}')">Supprimer</button>
+    </td>
+    `;
+
+    list.appendChild(tr);
+  }
+}
+
+function updateStatus(id, val){
+  db.ref("patrols/"+id).update({statut: val});
+}
+
+function deletePatrol(id){
+  db.ref("patrols/"+id).remove();
+}
+
+function panic(){
+  for(let id in patrols){
+    if(patrols[id].user === currentUser){
+      db.ref("patrols/"+id).update({panic:true});
+
+      setTimeout(()=>{
+        db.ref("patrols/"+id).update({panic:false});
+      },90000);
+    }
+  }
+}
+
+</script>
+
+</body>
+</html>
