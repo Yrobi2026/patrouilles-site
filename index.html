@@ -18,10 +18,11 @@ button { padding:8px; margin-top:10px; cursor:pointer; }
 table { width:100%; background:white; color:black; border-collapse:collapse; margin-top:20px; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
+label { font-weight:bold; margin-top:10px; display:block; }
+
+/* PANIC VISUEL */
 .panic { animation:blink 1s infinite; background:red !important; color:white; }
 @keyframes blink { 50% { opacity:0.3; } }
-
-label { font-weight:bold; margin-top:10px; display:block; }
 
 /* NOTIFICATIONS */
 #notifications {
@@ -56,7 +57,6 @@ label { font-weight:bold; margin-top:10px; display:block; }
 @keyframes fadeOut {
   to { opacity: 0; transform: translateX(100%); }
 }
-
 </style>
 </head>
 
@@ -85,11 +85,10 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 <h3>Créer une patrouille</h3>
 
-<label>Indicatif</label>
-<input id="indicatif">
+<label>Recherche effectifs</label>
+<input id="searchEffectifs" oninput="filterUsers()" placeholder="Rechercher un agent...">
 
-<label>Véhicule</label>
-<input id="vehicule">
+<p style="font-size:12px;">Maintenir CTRL pour sélectionner plusieurs effectifs</p>
 
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
@@ -99,14 +98,22 @@ label { font-weight:bold; margin-top:10px; display:block; }
 <option value="Non">Non</option>
 <option value="Oui">Oui</option>
 </select>
-<input id="armeDetail" placeholder="Ex: HK UMP9" style="display:none;">
+
+<select id="armeEffectif"></select>
 
 <label>OPJ</label>
 <select id="opj" onchange="toggleOPJ()">
 <option value="Non">Non</option>
 <option value="Oui">Oui</option>
 </select>
-<input id="opjDetail" placeholder="Ex: Nom Prénom" style="display:none;">
+
+<select id="opjList" multiple></select>
+
+<label>Indicatif</label>
+<input id="indicatif">
+
+<label>Véhicule</label>
+<input id="vehicule">
 
 <label>Mission</label>
 <input id="mission">
@@ -128,7 +135,7 @@ label { font-weight:bold; margin-top:10px; display:block; }
 <tr>
 <th>Indicatif</th>
 <th>Véhicule</th>
-<th>Effectifs</th>
+<th>Effectifs / Rôles</th>
 <th>Statut</th>
 <th>Actions</th>
 </tr>
@@ -141,7 +148,6 @@ label { font-weight:bold; margin-top:10px; display:block; }
 
 </div>
 
-<!-- NOTIFICATIONS -->
 <div id="notifications"></div>
 
 <script>
@@ -165,24 +171,19 @@ const db = firebase.database();
 let currentUser="";
 
 // NOTIFICATIONS
-function notify(message, type="info"){
-  let container = document.getElementById("notifications");
-
-  let div = document.createElement("div");
-  div.className = "toast " + type;
-  div.innerText = message;
-
-  container.appendChild(div);
-
+function notify(msg,type="info"){
+  let div=document.createElement("div");
+  div.className="toast "+type;
+  div.innerText=msg;
+  notifications.appendChild(div);
   setTimeout(()=>div.remove(),5000);
 }
 
-// EMAIL CONVERSION
+// AUTH
 function toEmail(u){
-  return u.toLowerCase().replace(/[^a-z0-9]/g,"") + "@patrol.fr";
+  return u.toLowerCase().replace(/[^a-z0-9]/g,"")+"@patrol.fr";
 }
 
-// AUTH
 function register(){
   authFirebase.createUserWithEmailAndPassword(
     toEmail(username.value),
@@ -219,34 +220,55 @@ authFirebase.onAuthStateChanged(user=>{
 function loadUsers(){
   db.ref("users").on("value", snap=>{
     let data=snap.val()||{};
+
     effectifs.innerHTML="";
+    armeEffectif.innerHTML="";
+    opjList.innerHTML="";
+
     Object.keys(data).forEach(u=>{
-      let o=document.createElement("option");
-      o.value=u;
-      o.textContent=u;
-      effectifs.appendChild(o);
+      let o1=document.createElement("option");
+      o1.value=u;o1.textContent=u;
+      effectifs.appendChild(o1);
+
+      let o2=document.createElement("option");
+      o2.value=u;o2.textContent=u;
+      armeEffectif.appendChild(o2);
+
+      let o3=document.createElement("option");
+      o3.value=u;o3.textContent=u;
+      opjList.appendChild(o3);
     });
+  });
+}
+
+// SEARCH
+function filterUsers(){
+  let search = searchEffectifs.value.toLowerCase();
+  Array.from(effectifs.options).forEach(o=>{
+    o.style.display = o.textContent.toLowerCase().includes(search) ? "" : "none";
   });
 }
 
 // TOGGLES
 function toggleArme(){
-  armeDetail.style.display = arme.value==="Oui" ? "block":"none";
+  armeEffectif.style.display = arme.value==="Oui" ? "block":"none";
 }
 function toggleOPJ(){
-  opjDetail.style.display = opj.value==="Oui" ? "block":"none";
+  opjList.style.display = opj.value==="Oui" ? "block":"none";
 }
 
 // ADD
 function addPatrol(){
+
   let eff = Array.from(effectifs.selectedOptions).map(o=>o.value);
 
   db.ref("patrols").push({
     indicatif: indicatif.value,
     vehicule: vehicule.value,
     effectifs: eff,
-    arme: arme.value==="Oui" ? armeDetail.value : "Non",
-    opj: opj.value==="Oui" ? opjDetail.value : "Non",
+    arme: arme.value,
+    armeEffectif: armeEffectif.value,
+    opjList: Array.from(opjList.selectedOptions).map(o=>o.value),
     mission: mission.value,
     statut: statut.value,
     panic:false
@@ -256,14 +278,14 @@ function addPatrol(){
 }
 
 // LISTEN
+let patrols={};
+
 function listenPatrols(){
   db.ref("patrols").on("value", snap=>{
-    patrols = snap.val()||{};
+    patrols=snap.val()||{};
     render();
   });
 }
-
-let patrols={};
 
 // RENDER
 function render(){
@@ -280,13 +302,21 @@ function render(){
 
     if(p.panic) tr.classList.add("panic");
 
+    let opjText = (p.opjList && p.opjList.length>0)
+      ? "OPJ: oui ("+p.opjList.join(", ")+")"
+      : "OPJ: non";
+
+    let armeText = (p.arme==="Oui")
+      ? "Arme: "+p.armeEffectif
+      : "Arme: non";
+
     tr.innerHTML=`
 <td>${p.indicatif}</td>
 <td>${p.vehicule}</td>
-<td>${(p.effectifs||[]).join(", ")}</td>
+<td>${(p.effectifs||[]).join(", ")}<br>${opjText}<br>${armeText}</td>
 
 <td>
-<select onchange="updateStatus('${id}', this.value)" style="background:${color};color:white;">
+<select onchange="updateStatus('${id}',this.value)" style="background:${color};color:white;">
 <option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
 <option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
 <option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
@@ -305,7 +335,7 @@ function render(){
 
 function updateStatus(id,val){
   db.ref("patrols/"+id).update({statut:val});
-  notify("Statut mis à jour : "+val,"info");
+  notify("Statut mis à jour","info");
 }
 
 // EDIT
@@ -325,8 +355,9 @@ function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// PANIC
+// PANIC AUDIO FIX
 function panic(){
+
   Object.entries(patrols).forEach(([id,p])=>{
     if((p.effectifs||[]).includes(currentUser)){
       db.ref("patrols/"+id).update({panic:true});
@@ -334,23 +365,21 @@ function panic(){
       setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
     }
   });
+
   notify("🚨 PANIC déclenché","danger");
 }
 
-// SIRENE 2.5S
 function playAlarm(){
   let ctx = new (window.AudioContext || window.webkitAudioContext)();
-  let duration = 2500;
-  let startTime = ctx.currentTime;
 
   let osc1 = ctx.createOscillator();
   let osc2 = ctx.createOscillator();
-
-  osc1.type = "sine";
-  osc2.type = "sine";
-
   let gain = ctx.createGain();
-  gain.gain.value = 0.2;
+
+  gain.gain.value=0.2;
+
+  osc1.type="sine";
+  osc2.type="sine";
 
   osc1.connect(gain);
   osc2.connect(gain);
@@ -359,38 +388,42 @@ function playAlarm(){
   osc1.start();
   osc2.start();
 
-  let interval = setInterval(()=>{
-    let t = ctx.currentTime - startTime;
+  let start = ctx.currentTime;
+  let duration = 2500;
+
+  function loop(){
+    let t = ctx.currentTime - start;
 
     if(t < duration/2){
-      osc1.frequency.setValueAtTime(800, ctx.currentTime);
+      osc1.frequency.setValueAtTime(700, ctx.currentTime);
       osc2.frequency.setValueAtTime(1200, ctx.currentTime);
     } else {
       osc1.frequency.setValueAtTime(1200, ctx.currentTime);
-      osc2.frequency.setValueAtTime(800, ctx.currentTime);
+      osc2.frequency.setValueAtTime(700, ctx.currentTime);
     }
-  },100);
+
+    if(t < duration){
+      requestAnimationFrame(loop);
+    }
+  }
+
+  loop();
 
   setTimeout(()=>{
     osc1.stop();
     osc2.stop();
-    clearInterval(interval);
   }, duration);
 }
 
 // DISPATCH
 function dispatch(){
-  beep(300,900);
-  notify("📢 Dispatch envoyé","warning");
-}
-
-function beep(duration,freq){
-  let ctx = new AudioContext();
-  let osc = ctx.createOscillator();
-  osc.frequency.value=freq;
+  let ctx=new AudioContext();
+  let osc=ctx.createOscillator();
+  osc.frequency.value=900;
   osc.connect(ctx.destination);
   osc.start();
-  setTimeout(()=>osc.stop(),duration);
+  setTimeout(()=>osc.stop(),300);
+  notify("📢 Dispatch","warning");
 }
 
 // TN
