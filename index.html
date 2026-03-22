@@ -44,7 +44,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <div style="display:flex; justify-content:space-between;">
 <div id="tnDisplay">TN : Aucun</div>
 <div>
-<button onclick="setTN()">Se définir TN</button>
+<button onclick="setTN()">TN</button>
 <button onclick="removeTN()">Retirer TN</button>
 <button onclick="logout()">Déconnexion</button>
 </div>
@@ -52,29 +52,31 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <h3>Créer une patrouille</h3>
 
-<label>Indicatif</label>
-<input id="indicatif">
+<label>Indicatif (ex: TV-12-A)</label>
+<input id="indicatif" placeholder="TV-12-A">
 
-<label>Véhicule</label>
-<input id="vehicule">
+<label>Véhicule (ex: Peugeot 5008)</label>
+<input id="vehicule" placeholder="Peugeot 5008">
 
 <label>Effectifs</label>
 <select id="effectifs" multiple></select>
 
 <label>Arme longue</label>
-<select id="arme">
-<option>Non</option>
-<option>Oui</option>
+<select id="arme" onchange="toggleArme()">
+<option value="Non">Non</option>
+<option value="Oui">Oui</option>
 </select>
+<input id="armeDetail" placeholder="Ex: HK UMP9" style="display:none;">
 
 <label>OPJ</label>
-<select id="opj">
-<option>Non</option>
-<option>Oui</option>
+<select id="opj" onchange="toggleOPJ()">
+<option value="Non">Non</option>
+<option value="Oui">Oui</option>
 </select>
+<input id="opjDetail" placeholder="Ex: Nom Prénom" style="display:none;">
 
-<label>Mission</label>
-<input id="mission">
+<label>Mission (ex: Police secours)</label>
+<input id="mission" placeholder="Police secours">
 
 <label>Statut</label>
 <select id="statut">
@@ -101,8 +103,6 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 <tbody id="list"></tbody>
 </table>
 
-<br>
-
 <button onclick="panic()" style="background:red;color:white;">🚨 PANIC</button>
 <button onclick="dispatch()" style="background:orange;color:white;">📢 DISPATCH</button>
 
@@ -110,7 +110,7 @@ th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 
 <script>
 
-// 🔥 CONFIG FIREBASE
+// CONFIG FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
   authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
@@ -126,14 +126,14 @@ firebase.initializeApp(firebaseConfig);
 const authFirebase = firebase.auth();
 const db = firebase.database();
 
-let currentUser = "";
+let currentUser="";
 
-// 🔁 EMAIL CLEAN
+// EMAIL CLEAN
 function toEmail(u){
   return u.toLowerCase().replace(/[^a-z0-9]/g,"") + "@patrol.fr";
 }
 
-// 🔐 AUTH
+// AUTH
 function register(){
   authFirebase.createUserWithEmailAndPassword(
     toEmail(username.value),
@@ -155,10 +155,9 @@ function logout(){
   authFirebase.signOut().then(()=>location.reload());
 }
 
-// SESSION
 authFirebase.onAuthStateChanged(user=>{
   if(user){
-    currentUser = username.value;
+    currentUser=username.value;
     auth.style.display="none";
     app.style.display="block";
     loadUsers();
@@ -170,7 +169,7 @@ authFirebase.onAuthStateChanged(user=>{
 // USERS
 function loadUsers(){
   db.ref("users").on("value", snap=>{
-    let data = snap.val() || {};
+    let data=snap.val()||{};
     effectifs.innerHTML="";
     Object.keys(data).forEach(u=>{
       let o=document.createElement("option");
@@ -181,7 +180,15 @@ function loadUsers(){
   });
 }
 
-// CREATE PATROL
+// TOGGLE INPUTS
+function toggleArme(){
+  armeDetail.style.display = arme.value==="Oui" ? "block":"none";
+}
+function toggleOPJ(){
+  opjDetail.style.display = opj.value==="Oui" ? "block":"none";
+}
+
+// ADD PATROL
 function addPatrol(){
 
   let eff = Array.from(effectifs.selectedOptions).map(o=>o.value);
@@ -190,27 +197,24 @@ function addPatrol(){
     indicatif: indicatif.value,
     vehicule: vehicule.value,
     effectifs: eff,
-    arme: arme.value,
-    opj: opj.value,
+    arme: arme.value==="Oui" ? armeDetail.value : "Non",
+    opj: opj.value==="Oui" ? opjDetail.value : "Non",
     mission: mission.value,
     statut: statut.value,
     panic:false
   });
 
-  indicatif.value="";
-  vehicule.value="";
-  mission.value="";
 }
 
 // LISTEN
 function listenPatrols(){
   db.ref("patrols").on("value", snap=>{
-    patrols = snap.val() || {};
+    patrols = snap.val()||{};
     render();
   });
 }
 
-let patrols = {};
+let patrols={};
 
 // RENDER
 function render(){
@@ -218,8 +222,7 @@ function render(){
 
   Object.entries(patrols).forEach(([id,p])=>{
 
-    let color = "white";
-    if(p.statut==="Disponible") color="#22c55e";
+    let color="#22c55e";
     if(p.statut==="Indisponible") color="#ef4444";
     if(p.statut==="Sur intervention") color="#f97316";
     if(p.statut==="En procédure") color="#3b82f6";
@@ -233,8 +236,13 @@ function render(){
 <td>${p.vehicule}</td>
 <td>${(p.effectifs||[]).join(", ")}</td>
 
-<td style="background:${color}; color:white;">
-${p.statut}
+<td>
+<select onchange="updateStatus('${id}', this.value)" style="background:${color};color:white;">
+<option ${p.statut==="Disponible"?"selected":""}>Disponible</option>
+<option ${p.statut==="Indisponible"?"selected":""}>Indisponible</option>
+<option ${p.statut==="Sur intervention"?"selected":""}>Sur intervention</option>
+<option ${p.statut==="En procédure"?"selected":""}>En procédure</option>
+</select>
 </td>
 
 <td>
@@ -242,32 +250,25 @@ ${p.statut}
 <button onclick="deletePatrol('${id}')">Supprimer</button>
 </td>
 `;
-
     list.appendChild(tr);
   });
 }
 
+function updateStatus(id,val){
+  db.ref("patrols/"+id).update({statut:val});
+}
+
 // EDIT
 function editPatrol(id){
-  let p = patrols[id];
+  let p=patrols[id];
 
-  let indicatif = prompt("Indicatif :", p.indicatif);
-  let vehicule = prompt("Véhicule :", p.vehicule);
-  let mission = prompt("Mission :", p.mission);
-
-  let statut = prompt(
-`Statut :
-Disponible
-Indisponible
-Sur intervention
-En procédure`,
-p.statut);
+  let indicatif=prompt("Indicatif",p.indicatif);
+  let vehicule=prompt("Véhicule",p.vehicule);
+  let mission=prompt("Mission",p.mission);
+  let statut=prompt("Statut",p.statut);
 
   db.ref("patrols/"+id).update({
-    indicatif,
-    vehicule,
-    mission,
-    statut
+    indicatif,vehicule,mission,statut
   });
 }
 
@@ -276,14 +277,25 @@ function deletePatrol(id){
   db.ref("patrols/"+id).remove();
 }
 
-// PANIC
+// PANIC (ALARME 5 SEC)
 function panic(){
   Object.entries(patrols).forEach(([id,p])=>{
     if((p.effectifs||[]).includes(currentUser)){
       db.ref("patrols/"+id).update({panic:true});
+      playAlarm();
       setTimeout(()=>db.ref("patrols/"+id).update({panic:false}),90000);
     }
   });
+}
+
+// ALARME SON 5 SEC
+function playAlarm(){
+  let ctx=new AudioContext();
+  let osc=ctx.createOscillator();
+  osc.frequency.value=1000;
+  osc.connect(ctx.destination);
+  osc.start();
+  setTimeout(()=>osc.stop(),5000);
 }
 
 // DISPATCH
@@ -291,8 +303,7 @@ function dispatch(){
   beep(300,900);
 }
 
-// SOUND
-function beep(duration,freq=440){
+function beep(duration,freq){
   let ctx=new AudioContext();
   let osc=ctx.createOscillator();
   osc.frequency.value=freq;
