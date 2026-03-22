@@ -2,1274 +2,1252 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PATROL OPS — Centre Opérationnel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Patrol Manager</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 80 90' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2300d4ff'/%3E%3Cstop offset='100%25' stop-color='%230066aa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='80' height='90' fill='%2307090f'/%3E%3Cpath d='M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z' fill='%230a1a2a' stroke='url(%23g)' stroke-width='3'/%3E%3Cg transform='translate(18,20)'%3E%3Cpath d='M10 2 C7.5 2 5.5 4 5.5 6.5 L5.5 29.5 C5.5 32 7.5 34 10 34 L26 34 C28.5 34 30.5 32 30.5 29.5 L30.5 6.5 C30.5 4 28.5 2 26 2 Z' fill='none' stroke='%2300d4ff' stroke-width='2.5'/%3E%3Crect x='13' y='5' width='10' height='2' rx='1' fill='%2300d4ff' opacity='0.7'/%3E%3Ccircle cx='18' cy='30.5' r='2' fill='%2300d4ff'/%3E%3Cpath d='M33 10 C36 13 36 18 33 21' fill='none' stroke='%2300d4ff' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M36 7 C41 12 41 19 36 24' fill='none' stroke='%2300d4ff' stroke-width='1.5' stroke-linecap='round' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 
-<!-- Firebase SDKs -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getDatabase, ref, set, get, update, remove, push, onValue, off, onDisconnect, serverTimestamp }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, set, get, update, remove, push, onValue, off, onDisconnect }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  // ─── FIREBASE CONFIG ───────────────────────────────────────────────────────
-  // ⚠️  Remplacez ces valeurs par votre propre configuration Firebase
-  const firebaseConfig = {
-    apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
-    authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
-    databaseURL: "https://gestion-patrouilles-5503d-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "gestion-patrouilles-5503d",
-    storageBucket: "gestion-patrouilles-5503d.firebasestorage.app",
-    messagingSenderId: "482427611880",
-    appId: "1:482427611880:web:b5df2a72fc41194784375d"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyCoU9LDrg1D4hC-ql4GpvKT5YnSaBVXEFI",
+  authDomain: "gestion-patrouilles-5503d.firebaseapp.com",
+  databaseURL: "https://gestion-patrouilles-5503d-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "gestion-patrouilles-5503d",
+  storageBucket: "gestion-patrouilles-5503d.firebasestorage.app",
+  messagingSenderId: "482427611880",
+  appId: "1:482427611880:web:b5df2a72fc41194784375d"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-  // ─── STATE ─────────────────────────────────────────────────────────────────
-  let currentUser = null;
-  let currentUserData = null;
-  let isAdmin = false;
-  let selectedEffectifs = [];
-  let patrouilles = {};
-  let effectifs = {};
-  let activeListeners = [];
+// ══════════════════════════════════════════════════════
+//  SERVICES CONFIG
+// ══════════════════════════════════════════════════════
+const SERVICES = {
+  pn:  { label: 'Police Nationale',     icon: '👮', color: '#3b82f6', operateur: 'TN',            exemple: 'TV-12-A' },
+  gn:  { label: 'Gendarmerie Nationale',icon: '🪖', color: '#22c55e', operateur: 'CORG',          exemple: 'PAM-A'  },
+  pm:  { label: 'Police Municipale',    icon: '🚔', color: '#06b6d4', operateur: 'CSU',           exemple: 'VT-01'  },
+  dou: { label: 'Douane',               icon: '🛃', color: '#a855f7', operateur: 'CODT',          exemple: 'DV-01'  },
+  sp:  { label: 'Sapeurs Pompiers',     icon: '🚒', color: '#ef4444', operateur: 'GOLF',          exemple: 'VSAV-01'},
+  sam: { label: 'SAMU',                 icon: '🚑', color: '#f97316', operateur: 'Régulation 15', exemple: 'ASSU-01'},
+  dir: { label: 'DIR',                  icon: '🚧', color: '#eab308', operateur: 'PC Sécurité',   exemple: 'PAT-01' },
+};
 
-  // ─── AUDIO ENGINE ──────────────────────────────────────────────────────────
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  let audioCtx = null;
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let currentUser     = null;
+let currentUserData = null;
+let isAdmin         = false;
+let isOwner         = false;
+let currentServer   = null; // { id, name, type }
+let currentService  = null; // key of SERVICES
+let selectedEffectifs = [];
+let patrouilles     = {};
+let effectifs       = {};
+let serversData     = {};
+let activeListeners = [];
 
-  function getAudioCtx() {
-    if (!audioCtx) audioCtx = new AudioCtx();
-    return audioCtx;
-  }
+// ══════════════════════════════════════════════════════
+//  AUDIO
+// ══════════════════════════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function getACtx() { if (!audioCtx) audioCtx = new AudioCtx(); return audioCtx; }
 
-  function playPanic() {
-    const ctx = getAudioCtx();
-    const duration = 2.5;
-    const start = ctx.currentTime;
-    const tones = [880, 660, 880, 660, 880, 660, 880, 660, 880, 660];
-    tones.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(freq, start + i * 0.25);
-      gain.gain.setValueAtTime(0.4, start + i * 0.25);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + i * 0.25 + 0.24);
-      osc.start(start + i * 0.25);
-      osc.stop(start + i * 0.25 + 0.25);
-    });
-  }
+function playPanic() {
+  const ctx = getACtx(); const s = ctx.currentTime;
+  [880,660,880,660,880,660,880,660,880,660].forEach((f,i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'square'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.4, s+i*0.25);
+    g.gain.exponentialRampToValueAtTime(0.001, s+i*0.25+0.24);
+    o.start(s+i*0.25); o.stop(s+i*0.25+0.25);
+  });
+}
+function playDispatch() {
+  const ctx = getACtx(); const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination); o.type = 'sine';
+  o.frequency.setValueAtTime(1200, ctx.currentTime);
+  o.frequency.linearRampToValueAtTime(800, ctx.currentTime+0.15);
+  g.gain.setValueAtTime(0.5, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.35);
+  o.start(); o.stop(ctx.currentTime+0.35);
+}
+function playNotif() {
+  const ctx = getACtx();
+  [600,900].forEach((f,i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination); o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.3, ctx.currentTime+i*0.12);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+i*0.12+0.1);
+    o.start(ctx.currentTime+i*0.12); o.stop(ctx.currentTime+i*0.12+0.12);
+  });
+}
 
-  function playDispatch() {
-    const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1200, ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.5, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.start(); osc.stop(ctx.currentTime + 0.35);
-  }
+// ══════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════════════════
+function showNotif(msg, type='info', sound=false) {
+  if (sound==='panic') playPanic();
+  else if (sound==='dispatch') playDispatch();
+  else if (sound==='notif') playNotif();
+  const c = document.getElementById('notif-container');
+  const n = document.createElement('div');
+  n.className = `notif notif-${type}`;
+  const icons = {panic:'🚨',dispatch:'📡',success:'✅',warn:'⚠️',info:'ℹ️'};
+  n.innerHTML = `<span class="notif-icon">${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+  c.appendChild(n);
+  setTimeout(() => { n.classList.add('hide'); setTimeout(()=>n.remove(),400); }, 4000);
+}
 
-  function playNotif() {
-    const ctx = getAudioCtx();
-    [600, 900].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.1);
-      osc.start(ctx.currentTime + i * 0.12);
-      osc.stop(ctx.currentTime + i * 0.12 + 0.12);
-    });
-  }
+function showAnnonce(msg) {
+  const b = document.getElementById('annonce-banner');
+  document.getElementById('annonce-text').textContent = msg;
+  b.classList.remove('hidden'); playNotif();
+  setTimeout(() => b.classList.add('hidden'), 10000);
+}
 
-  // ─── NOTIFICATION UI ───────────────────────────────────────────────────────
-  function showNotif(msg, type = 'info', sound = false) {
-    if (sound === 'panic') playPanic();
-    else if (sound === 'dispatch') playDispatch();
-    else if (sound === 'notif') playNotif();
+// ══════════════════════════════════════════════════════
+//  NAVIGATION SCREENS
+// ══════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
 
-    const container = document.getElementById('notif-container');
-    const n = document.createElement('div');
-    n.className = `notif notif-${type}`;
-    n.innerHTML = `<span class="notif-icon">${type === 'panic' ? '🚨' : type === 'dispatch' ? '📡' : type === 'success' ? '✅' : type === 'warn' ? '⚠️' : 'ℹ️'}</span><span>${msg}</span>`;
-    container.appendChild(n);
-    setTimeout(() => { n.classList.add('hide'); setTimeout(() => n.remove(), 400); }, 4000);
-  }
+// ══════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════
+window.doRegister = async function() {
+  const id = document.getElementById('reg-id').value.trim();
+  const pw = document.getElementById('reg-pw').value.trim();
+  const err = document.getElementById('reg-error');
+  if (!id || !pw) { err.textContent='Champs requis.'; return; }
+  const email = id+'@patrol.fr';
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pw);
+    await set(ref(db,`users/${cred.user.uid}`), { username:id, online:false, role:'agent' });
+    err.style.color='#4ade80'; err.textContent='Compte créé ! Connectez-vous.';
+  } catch(e) { err.style.color='#f87171'; err.textContent=translateError(e.code); }
+};
 
-  // ─── GLOBAL ANNOUNCEMENT ───────────────────────────────────────────────────
-  function showAnnonce(msg) {
-    const banner = document.getElementById('annonce-banner');
-    const text = document.getElementById('annonce-text');
-    text.textContent = msg;
-    banner.classList.remove('hidden');
-    playNotif();
-    setTimeout(() => banner.classList.add('hidden'), 10000);
-  }
-
-  // ─── AUTH ──────────────────────────────────────────────────────────────────
-  window.doRegister = async function() {
-    const id = document.getElementById('reg-id').value.trim();
-    const pw = document.getElementById('reg-pw').value.trim();
-    const err = document.getElementById('reg-error');
-    if (!id || !pw) { err.textContent = 'Champs requis.'; return; }
-    const email = id + '@patrol.fr';
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, pw);
-      await set(ref(db, `users/${cred.user.uid}`), { username: id, online: false, role: 'agent' });
-      err.style.color = '#4ade80';
-      err.textContent = 'Compte créé ! Connectez-vous.';
-    } catch(e) { err.style.color = '#f87171'; err.textContent = translateError(e.code); }
-  };
-
-  window.doLogin = async function() {
-    const id = document.getElementById('login-id').value.trim();
-    const pw = document.getElementById('login-pw').value.trim();
-    const err = document.getElementById('login-error');
-    if (!id || !pw) { err.textContent = 'Champs requis.'; return; }
-    const email = id + '@patrol.fr';
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email, pw);
-      // Vérification ban APRÈS connexion
-      const snap = await get(ref(db, `users/${cred.user.uid}`));
-      if (snap.exists() && snap.val().banned === true) {
-        await signOut(auth);
-        err.style.color = '#f87171';
-        err.textContent = '🚫 Compte suspendu. Contactez un administrateur.';
-        return;
-      }
-    } catch(e) { err.textContent = translateError(e.code); }
-  };
-
-  window.doLogout = async function() {
-    if (currentUser) {
-      await update(ref(db, `users/${currentUser.uid}`), { online: false });
+window.doLogin = async function() {
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value.trim();
+  const err = document.getElementById('login-error');
+  if (!id || !pw) { err.textContent='Champs requis.'; return; }
+  try {
+    const cred = await signInWithEmailAndPassword(auth, id+'@patrol.fr', pw);
+    const snap = await get(ref(db,`users/${cred.user.uid}`));
+    if (snap.exists() && snap.val().banned) {
+      await signOut(auth);
+      err.style.color='#f87171'; err.textContent='🚫 Compte suspendu.'; return;
     }
-    await signOut(auth);
-  };
+  } catch(e) { err.textContent=translateError(e.code); }
+};
 
-  function translateError(code) {
-    const map = {
-      'auth/user-not-found': 'Utilisateur introuvable.',
-      'auth/wrong-password': 'Mot de passe incorrect.',
-      'auth/email-already-in-use': 'Identifiant déjà utilisé.',
-      'auth/weak-password': 'Mot de passe trop court (min 6).',
-      'auth/invalid-credential': 'Identifiants invalides.',
-    };
-    return map[code] || 'Erreur: ' + code;
+window.doLogout = async function() {
+  if (currentUser) await update(ref(db,`users/${currentUser.uid}`),{online:false});
+  stopListeners();
+  currentServer=null; currentService=null;
+  await signOut(auth);
+};
+
+window.goBackToServers = async function() {
+  stopListeners(); currentService=null; currentServer=null;
+  showScreen('screen-servers');
+  loadServers();
+};
+
+window.goBackToServices = function() {
+  stopListeners(); currentService=null;
+  showScreen('screen-services');
+  renderServices();
+};
+
+function translateError(c) {
+  return ({
+    'auth/user-not-found':'Utilisateur introuvable.',
+    'auth/wrong-password':'Mot de passe incorrect.',
+    'auth/email-already-in-use':'Identifiant déjà utilisé.',
+    'auth/weak-password':'Mot de passe trop court (min 6).',
+    'auth/invalid-credential':'Identifiants invalides.',
+  })[c] || 'Erreur: '+c;
+}
+
+// ══════════════════════════════════════════════════════
+//  AUTH STATE
+// ══════════════════════════════════════════════════════
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    const snap = await get(ref(db,`users/${user.uid}`));
+    if (!snap.exists()) { await signOut(auth); return; }
+    currentUserData = snap.val();
+    isAdmin  = currentUserData.username === 'admin';
+    isOwner  = currentUserData.username === 'owner';
+    await update(ref(db,`users/${user.uid}`),{online:true});
+    onDisconnect(ref(db,`users/${user.uid}/online`)).set(false);
+    showScreen('screen-servers');
+    loadServers();
+  } else {
+    currentUser=null; currentUserData=null; isAdmin=false; isOwner=false;
+    stopListeners();
+    showScreen('screen-auth');
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  SERVERS
+// ══════════════════════════════════════════════════════
+async function loadServers() {
+  const snap = await get(ref(db,'servers'));
+  serversData = snap.val() || {};
+  renderServerList();
+}
+
+function renderServerList() {
+  const list = document.getElementById('server-list');
+  const entries = Object.entries(serversData);
+  list.innerHTML = '';
+
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty-card">Aucun serveur disponible${isOwner?' — créez-en un ci-dessous':''}</div>`;
+    return;
   }
 
-  // ─── AUTH STATE ────────────────────────────────────────────────────────────
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      currentUser = user;
-      const snap = await get(ref(db, `users/${user.uid}`));
-      if (!snap.exists()) { await signOut(auth); return; }
-      currentUserData = snap.val();
-      isAdmin = (currentUserData.username === 'admin');
-
-      await update(ref(db, `users/${user.uid}`), { online: true });
-      onDisconnect(ref(db, `users/${user.uid}/online`)).set(false);
-
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('main-app').classList.remove('hidden');
-      document.getElementById('current-user-name').textContent = currentUserData.username;
-      document.getElementById('admin-panel-btn').classList.toggle('hidden', !isAdmin);
-      document.getElementById('dispatch-btn').classList.remove('hidden');
-      document.getElementById('panic-btn').classList.remove('hidden');
-
-      // Petit délai pour laisser Firebase propager online:true avant d'écouter
-      setTimeout(() => startListeners(), 300);
-    } else {
-      currentUser = null; currentUserData = null; isAdmin = false;
-      stopListeners();
-      document.getElementById('auth-screen').classList.remove('hidden');
-      document.getElementById('main-app').classList.add('hidden');
-    }
+  entries.forEach(([id, s]) => {
+    const card = document.createElement('div');
+    card.className = 'server-card';
+    card.innerHTML = `
+      <div class="server-card-info">
+        <div class="server-card-name">${s.name}</div>
+        <div class="server-card-type badge-${s.type}">${s.type === 'WL' ? '🔒 WhiteList' : '🔓 Free Access'}</div>
+      </div>
+      ${isOwner ? `<button class="btn-icon danger" onclick="deleteServer('${id}')">🗑</button>` : ''}
+    `;
+    card.querySelector('.server-card-info').onclick = () => selectServer(id, s);
+    list.appendChild(card);
   });
 
-  // ─── REALTIME LISTENERS ────────────────────────────────────────────────────
-  function startListeners() {
-    const usersRef = ref(db, 'users');
-    const unsubUsers = onValue(usersRef, snap => {
-      effectifs = snap.val() || {};
-      renderEffectifs();
-      renderAllSelects();
-      if (isAdmin) renderAdminUserList();
-    });
-    activeListeners.push(() => off(usersRef));
+  document.getElementById('owner-panel').classList.toggle('hidden', !isOwner);
+}
 
-    const patRef = ref(db, 'patrouilles');
-    onValue(patRef, snap => {
-      const raw = snap.val();
-      patrouilles = (raw && typeof raw === 'object') ? raw : {};
-      renderPatrouilles();
-    });
-    activeListeners.push(() => off(patRef));
+window.createServer = async function() {
+  const name = document.getElementById('server-name').value.trim();
+  const type = document.getElementById('server-type').value;
+  if (!name) { showNotif('Nom requis.','warn'); return; }
+  await push(ref(db,'servers'), { name, type });
+  document.getElementById('server-name').value = '';
+  await loadServers();
+  showNotif(`Serveur "${name}" créé.`,'success','notif');
+};
 
-    const tnRef = ref(db, 'tn');
-    onValue(tnRef, snap => {
-      const tn = snap.val();
-      document.getElementById('tn-display').textContent = tn ? tn : '—';
-    });
-    activeListeners.push(() => off(tnRef));
+// Expose for inline panel
+window._pushServer = async (name, type) => {
+  await push(ref(db,'servers'), { name, type });
+  await loadServers();
+};
 
-    const annRef = ref(db, 'annonce');
-    onValue(annRef, snap => {
-      const ann = snap.val();
-      if (ann && ann.msg && ann.ts) {
-        const age = Date.now() - ann.ts;
-        if (age < 10500) showAnnonce(ann.msg);
-      }
-    });
-    activeListeners.push(() => off(annRef));
-  }
+window.deleteServer = async function(id) {
+  if (!confirm('Supprimer ce serveur et toutes ses données ?')) return;
+  await remove(ref(db,`servers/${id}`));
+  await loadServers();
+  showNotif('Serveur supprimé.','warn');
+};
 
-  function stopListeners() {
-    activeListeners.forEach(fn => fn());
-    activeListeners = [];
-  }
+function selectServer(id, s) {
+  currentServer = { id, ...s };
+  document.getElementById('breadcrumb-server').textContent = s.name;
+  showScreen('screen-services');
+  renderServices();
+}
 
-  // ─── EFFECTIFS ─────────────────────────────────────────────────────────────
-  function getOnlineEffectifs() {
-    return Object.entries(effectifs)
-      .filter(([, u]) => u && u.online === true)
-      .map(([uid, u]) => ({ uid, ...u }));
-  }
+// ══════════════════════════════════════════════════════
+//  SERVICES
+// ══════════════════════════════════════════════════════
+function renderServices() {
+  const grid = document.getElementById('services-grid');
+  grid.innerHTML = '';
+  Object.entries(SERVICES).forEach(([key, svc]) => {
+    const card = document.createElement('div');
+    card.className = 'service-card';
+    card.style.setProperty('--svc-color', svc.color);
+    card.innerHTML = `
+      <div class="svc-icon">${svc.icon}</div>
+      <div class="svc-label">${svc.label}</div>
+      <div class="svc-op">Opérateur : <strong>${svc.operateur}</strong></div>
+      <div class="svc-ex">ex : <span>${svc.exemple}</span></div>
+    `;
+    card.onclick = () => selectService(key);
+    grid.appendChild(card);
+  });
+}
 
-  function renderEffectifs() {
-    const search = document.getElementById('effectif-search')?.value?.toLowerCase() || '';
-    const list = document.getElementById('effectif-list');
-    if (!list) return;
-    list.innerHTML = '';
+function selectService(key) {
+  currentService = key;
+  const svc = SERVICES[key];
+  document.getElementById('breadcrumb-service').textContent = svc.label;
+  // Update topbar operateur label
+  document.getElementById('operateur-label').textContent = svc.operateur+':';
+  document.getElementById('topbar-service-icon').textContent = svc.icon+' '+svc.label;
+  // Update indicatif placeholder
+  document.getElementById('indicatif').placeholder = `ex: ${svc.exemple}`;
+  showScreen('screen-panel');
+  setTimeout(() => startListeners(), 300);
+}
 
-    const online = getOnlineEffectifs().filter(u => u.username.toLowerCase().includes(search));
+// ══════════════════════════════════════════════════════
+//  LISTENERS
+// ══════════════════════════════════════════════════════
+function stopListeners() {
+  activeListeners.forEach(fn => fn());
+  activeListeners = [];
+  patrouilles = {}; effectifs = {};
+}
 
-    if (online.length === 0) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--text3);padding:10px;text-align:center;';
-      empty.textContent = 'Aucun effectif en ligne';
-      list.appendChild(empty);
-      document.getElementById('effectif-count').textContent = '0 en ligne';
-      return;
-    }
+function startListeners() {
+  const base = `servers/${currentServer.id}/services/${currentService}`;
 
-    online.forEach(u => {
-        const li = document.createElement('div');
-        li.className = 'effectif-item' + (selectedEffectifs.includes(u.uid) ? ' selected' : '');
-        li.dataset.uid = u.uid;
-        li.innerHTML = `<span class="dot"></span><span>${u.username}</span>${u.role === 'admin' ? '<span class="badge-admin">ADMIN</span>' : ''}`;
-        li.onclick = (e) => {
-          if (e.ctrlKey || e.metaKey) {
-            if (selectedEffectifs.includes(u.uid)) selectedEffectifs = selectedEffectifs.filter(x => x !== u.uid);
-            else selectedEffectifs.push(u.uid);
-          } else {
-            selectedEffectifs = selectedEffectifs.includes(u.uid) && selectedEffectifs.length === 1 ? [] : [u.uid];
-          }
-          renderEffectifs();
-        };
-        if (isAdmin) {
-          const del = document.createElement('button');
-          del.className = 'btn-icon danger'; del.textContent = '✕';
-          del.onclick = (e) => { e.stopPropagation(); deleteUser(u.uid); };
-          li.appendChild(del);
-        }
-        list.appendChild(li);
-      });
-    document.getElementById('effectif-count').textContent = getOnlineEffectifs().length + ' en ligne';
-  }
-
-  async function deleteUser(uid) {
-    if (!confirm('Supprimer définitivement ce compte ?')) return;
-    await remove(ref(db, `users/${uid}`));
-    showNotif('Compte supprimé.', 'warn');
-    renderAdminUserList();
-  }
-
-  async function banUser(uid, username) {
-    if (!confirm(`Suspendre le compte "${username}" ?`)) return;
-    await update(ref(db, `users/${uid}`), { banned: true, online: false });
-    showNotif(`🚫 ${username} suspendu.`, 'warn');
-    renderAdminUserList();
-  }
-
-  async function unbanUser(uid, username) {
-    await update(ref(db, `users/${uid}`), { banned: false });
-    showNotif(`✅ ${username} réactivé.`, 'success');
-    renderAdminUserList();
-  }
-
-  function renderAdminUserList() {
-    const container = document.getElementById('admin-user-list');
-    if (!container) return;
-    const allUsers = Object.entries(effectifs);
-    if (!allUsers.length) {
-      container.innerHTML = `<div style="color:var(--text3);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px;">Aucun membre enregistré.</div>`;
-      return;
-    }
-    container.innerHTML = '';
-    allUsers.forEach(([uid, u]) => {
-      if (!u || u.username === 'admin') return;
-      const row = document.createElement('div');
-      row.className = 'admin-user-row' + (u.banned ? ' banned' : '');
-      row.innerHTML = `
-        <div class="admin-user-info">
-          <span class="admin-user-dot" style="background:${u.banned ? 'var(--red)' : u.online ? 'var(--green)' : 'var(--text3)'}"></span>
-          <span class="admin-user-name">${u.username}</span>
-          <span class="admin-user-status">${u.banned ? '🚫 SUSPENDU' : u.online ? '🟢 EN LIGNE' : '⚫ HORS LIGNE'}</span>
-        </div>
-        <div class="admin-user-actions">
-          ${u.banned
-            ? `<button class="btn-admin-action unban" onclick="unbanUser('${uid}','${u.username}')">RÉACTIVER</button>`
-            : `<button class="btn-admin-action ban" onclick="banUser('${uid}','${u.username}')">SUSPENDRE</button>`
-          }
-          <button class="btn-admin-action delete" onclick="deleteUser('${uid}')">SUPPRIMER</button>
-        </div>
-      `;
-      container.appendChild(row);
-    });
-  }
-
-  window.banUser = banUser;
-  window.unbanUser = unbanUser;
-  window.deleteUser = deleteUser;
-  window.renderAdminUserList = renderAdminUserList;
-
-  window.filterEffectifs = function() { renderEffectifs(); };
-
-  // ─── SELECTS DYNAMIQUES ────────────────────────────────────────────────────
-  function renderAllSelects() {
-    const online = getOnlineEffectifs();
-    ['opj-agent', 'arme-agent', 'effectifs-select'].forEach(id => {
-      const sel = document.getElementById(id);
-      if (!sel) return;
-      const val = sel.value;
-      if (id === 'effectifs-select') {
-        sel.innerHTML = online.map(u => `<option value="${u.uid}">${u.username}</option>`).join('');
-      } else {
-        sel.innerHTML = `<option value="">— Choisir —</option>` + online.map(u => `<option value="${u.uid}">${u.username}</option>`).join('');
-      }
-      sel.value = val;
-    });
-  }
-
-  // ─── PATROUILLES ───────────────────────────────────────────────────────────
-  window.openPatrolModal = function(id = null) {
-    const modal = document.getElementById('patrol-modal');
-    const title = document.getElementById('modal-title');
-    modal.classList.remove('hidden');
+  // Effectifs = tous les users (globaux)
+  const uRef = ref(db,'users');
+  onValue(uRef, snap => {
+    effectifs = snap.val() || {};
+    renderEffectifs();
     renderAllSelects();
+    if (isAdmin) renderAdminUserList();
+  });
+  activeListeners.push(() => off(uRef));
 
-    if (id) {
-      const p = patrouilles[id];
-      title.textContent = 'MODIFIER PATROUILLE';
-      document.getElementById('patrol-id-edit').value = id;
-      document.getElementById('indicatif').value = p.indicatif || '';
-      document.getElementById('vehicule').value = p.vehicule || '';
-      document.getElementById('mission').value = p.mission || '';
-      document.getElementById('statut').value = p.statut || 'Disponible';
-      document.getElementById('opj').value = p.opj || 'Non';
-      document.getElementById('arme').value = p.arme || 'Non';
-      toggleOPJ(); toggleArme();
-      if (p.opjAgent) document.getElementById('opj-agent').value = p.opjAgent;
-      if (p.armeAgent) document.getElementById('arme-agent').value = p.armeAgent;
-      // effectifs
-      const sel = document.getElementById('effectifs-select');
-      if (p.effectifs) {
-        Array.from(sel.options).forEach(opt => { opt.selected = p.effectifs.includes(opt.value); });
+  // Patrouilles = spécifiques au serveur+service
+  const pRef = ref(db,`${base}/patrouilles`);
+  onValue(pRef, snap => {
+    const raw = snap.val();
+    patrouilles = (raw && typeof raw==='object') ? raw : {};
+    renderPatrouilles();
+  });
+  activeListeners.push(() => off(pRef));
+
+  // TN/Opérateur
+  const tnRef = ref(db,`${base}/tn`);
+  onValue(tnRef, snap => {
+    const v = snap.val();
+    document.getElementById('tn-display').textContent = v||'—';
+    document.getElementById('tn-display-sidebar').textContent = v||'—';
+  });
+  activeListeners.push(() => off(tnRef));
+
+  // Annonces
+  const annRef = ref(db,`servers/${currentServer.id}/annonce`);
+  onValue(annRef, snap => {
+    const ann = snap.val();
+    if (ann?.msg && ann?.ts && Date.now()-ann.ts < 10500) showAnnonce(ann.msg);
+  });
+  activeListeners.push(() => off(annRef));
+
+  // Admin panel
+  document.getElementById('topbar-admin-btn').classList.toggle('hidden', !isAdmin);
+  document.getElementById('topbar-owner-btn').classList.toggle('hidden', !isOwner);
+  document.getElementById('current-user-name').textContent = currentUserData.username;
+}
+
+// ══════════════════════════════════════════════════════
+//  EFFECTIFS
+// ══════════════════════════════════════════════════════
+function getOnlineEffectifs() {
+  return Object.entries(effectifs)
+    .filter(([,u]) => u && u.online===true)
+    .map(([uid,u]) => ({uid,...u}));
+}
+
+function renderEffectifs() {
+  const search = document.getElementById('effectif-search')?.value?.toLowerCase()||'';
+  const list = document.getElementById('effectif-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const online = getOnlineEffectifs().filter(u=>u.username.toLowerCase().includes(search));
+  if (!online.length) {
+    list.innerHTML = `<div class="no-effectif">Aucun effectif en ligne</div>`;
+    document.getElementById('effectif-count').textContent = '0 en ligne';
+    return;
+  }
+  online.forEach(u => {
+    const li = document.createElement('div');
+    li.className = 'effectif-item'+(selectedEffectifs.includes(u.uid)?' selected':'');
+    li.innerHTML = `<span class="dot"></span><span>${u.username}</span>${u.role==='admin'?'<span class="badge-admin">ADMIN</span>':''}`;
+    li.onclick = e => {
+      if (e.ctrlKey||e.metaKey) {
+        selectedEffectifs.includes(u.uid) ? selectedEffectifs=selectedEffectifs.filter(x=>x!==u.uid) : selectedEffectifs.push(u.uid);
+      } else {
+        selectedEffectifs = (selectedEffectifs.includes(u.uid)&&selectedEffectifs.length===1) ? [] : [u.uid];
       }
-    } else {
-      title.textContent = 'NOUVELLE PATROUILLE';
-      document.getElementById('patrol-id-edit').value = '';
-      document.getElementById('patrol-form').reset();
-      toggleOPJ(); toggleArme();
-    }
-  };
-
-  window.closePatrolModal = function() {
-    document.getElementById('patrol-modal').classList.add('hidden');
-  };
-
-  window.toggleOPJ = function() {
-    const v = document.getElementById('opj').value;
-    document.getElementById('opj-agent-row').classList.toggle('hidden', v !== 'Oui');
-  };
-
-  window.toggleArme = function() {
-    const v = document.getElementById('arme').value;
-    document.getElementById('arme-agent-row').classList.toggle('hidden', v !== 'Oui');
-  };
-
-  window.savePatrol = async function() {
-    const id = document.getElementById('patrol-id-edit').value;
-    const sel = document.getElementById('effectifs-select');
-    const effectifsSelected = Array.from(sel.selectedOptions).map(o => o.value);
-    const opj = document.getElementById('opj').value;
-    const arme = document.getElementById('arme').value;
-    const data = {
-      indicatif: document.getElementById('indicatif').value.trim(),
-      vehicule: document.getElementById('vehicule').value.trim(),
-      mission: document.getElementById('mission').value.trim(),
-      statut: document.getElementById('statut').value,
-      opj,
-      opjAgent: opj === 'Oui' ? document.getElementById('opj-agent').value : '',
-      arme,
-      armeAgent: arme === 'Oui' ? document.getElementById('arme-agent').value : '',
-      effectifs: effectifsSelected,
-      panic: false,
+      renderEffectifs();
     };
-    if (!data.indicatif) { showNotif('Indicatif requis.', 'warn'); return; }
-    if (id) {
-      await update(ref(db, `patrouilles/${id}`), data);
-      showNotif(`Patrouille ${data.indicatif} mise à jour.`, 'success', 'notif');
-    } else {
-      await push(ref(db, 'patrouilles'), data);
-      showNotif(`Patrouille ${data.indicatif} créée.`, 'success', 'notif');
+    if (isAdmin) {
+      const del = document.createElement('button');
+      del.className='btn-icon danger sm'; del.textContent='✕';
+      del.onclick=e=>{e.stopPropagation();deleteUser(u.uid,u.username);};
+      li.appendChild(del);
     }
-    closePatrolModal();
-  };
+    list.appendChild(li);
+  });
+  document.getElementById('effectif-count').textContent = online.length+' en ligne';
+}
 
-  window.deletePatrol = async function(id) {
-    if (!confirm('Supprimer cette patrouille ?')) return;
-    await remove(ref(db, `patrouilles/${id}`));
-    showNotif('Patrouille supprimée.', 'warn');
-  };
+window.filterEffectifs = () => renderEffectifs();
 
-  window.changeStatut = async function(id, val) {
-    await update(ref(db, `patrouilles/${id}`), { statut: val });
-    showNotif(`Statut → ${val}`, 'info', 'notif');
-  };
+function renderAllSelects() {
+  const online = getOnlineEffectifs();
+  ['opj-agent','arme-agent'].forEach(id => {
+    const sel = document.getElementById(id); if(!sel) return;
+    const v = sel.value;
+    sel.innerHTML = `<option value="">— Choisir —</option>`+online.map(u=>`<option value="${u.uid}">${u.username}</option>`).join('');
+    sel.value = v;
+  });
+  const ms = document.getElementById('effectifs-select'); if(!ms) return;
+  const prev = Array.from(ms.selectedOptions).map(o=>o.value);
+  ms.innerHTML = online.map(u=>`<option value="${u.uid}">${u.username}</option>`).join('');
+  Array.from(ms.options).forEach(o=>{ o.selected=prev.includes(o.value); });
+}
 
-  window.triggerPanic = async function(id) {
-    await update(ref(db, `patrouilles/${id}`), { panic: true });
-    showNotif('🚨 PANIC ACTIVÉ', 'panic', 'panic');
-    setTimeout(() => update(ref(db, `patrouilles/${id}`), { panic: false }), 8000);
-  };
+// ══════════════════════════════════════════════════════
+//  ADMIN — USERS
+// ══════════════════════════════════════════════════════
+async function deleteUser(uid) {
+  if (!confirm('Supprimer ce compte ?')) return;
+  await remove(ref(db,`users/${uid}`));
+  showNotif('Compte supprimé.','warn');
+}
+async function banUser(uid, username) {
+  if (!confirm(`Suspendre "${username}" ?`)) return;
+  await update(ref(db,`users/${uid}`),{banned:true,online:false});
+  showNotif(`🚫 ${username} suspendu.`,'warn');
+}
+async function unbanUser(uid, username) {
+  await update(ref(db,`users/${uid}`),{banned:false});
+  showNotif(`✅ ${username} réactivé.`,'success');
+}
+window.banUser=banUser; window.unbanUser=unbanUser; window.deleteUser=deleteUser;
 
-  function renderPatrouilles() {
-    const tbody = document.getElementById('patrol-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+function renderAdminUserList() {
+  const c = document.getElementById('admin-user-list'); if(!c) return;
+  const all = Object.entries(effectifs).filter(([,u])=>u&&u.username!=='admin'&&u.username!=='owner');
+  if (!all.length) { c.innerHTML=`<div class="no-effectif">Aucun membre.</div>`; return; }
+  c.innerHTML='';
+  all.forEach(([uid,u]) => {
+    const row=document.createElement('div');
+    row.className='admin-user-row'+(u.banned?' banned':'');
+    row.innerHTML=`
+      <div class="admin-user-info">
+        <span class="admin-user-dot" style="background:${u.banned?'var(--red)':u.online?'var(--green)':'var(--text3)'}"></span>
+        <span class="admin-user-name">${u.username}</span>
+        <span class="admin-user-status">${u.banned?'🚫 SUSPENDU':u.online?'🟢 EN LIGNE':'⚫ HORS LIGNE'}</span>
+      </div>
+      <div class="admin-user-actions">
+        ${u.banned
+          ?`<button class="btn-admin-action unban" onclick="unbanUser('${uid}','${u.username}')">RÉACTIVER</button>`
+          :`<button class="btn-admin-action ban" onclick="banUser('${uid}','${u.username}')">SUSPENDRE</button>`}
+        <button class="btn-admin-action delete" onclick="deleteUser('${uid}')">SUPPRIMER</button>
+      </div>`;
+    c.appendChild(row);
+  });
+}
+window.renderAdminUserList = renderAdminUserList;
 
-    const entries = Object.entries(patrouilles).filter(([, p]) => p && typeof p === 'object');
-    const count = entries.length;
+// ══════════════════════════════════════════════════════
+//  PATROUILLES
+// ══════════════════════════════════════════════════════
+const base = () => `servers/${currentServer.id}/services/${currentService}`;
 
-    // Mise à jour compteur
-    const countEl = document.getElementById('patrol-count');
-    if (countEl) countEl.textContent = count;
-
-    if (!count) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Aucune patrouille active</td></tr>`;
-      return;
-    }
-
-    entries.forEach(([id, p]) => {
-      const names = Array.isArray(p.effectifs)
-        ? p.effectifs.map(uid => effectifs[uid]?.username || uid).join(', ')
-        : '—';
-      const opjName = p.opj === 'Oui' && p.opjAgent ? (effectifs[p.opjAgent]?.username || '') : '';
-      const armeName = p.arme === 'Oui' && p.armeAgent ? (effectifs[p.armeAgent]?.username || '') : '';
-      const opjText = p.opj === 'Oui' ? `OPJ: Oui${opjName ? ` (${opjName})` : ''}` : 'OPJ: Non';
-      const armeText = p.arme === 'Oui' ? `Arme: Oui${armeName ? ` (${armeName})` : ''}` : 'Arme: Non';
-      const statut = p.statut || 'Disponible';
-      const tr = document.createElement('tr');
-      tr.className = p.panic ? 'panic-row' : '';
-      tr.innerHTML = `
-        <td data-label="INDICATIF"><span class="indicatif-badge">${p.indicatif || '—'}</span></td>
-        <td data-label="VÉHICULE">${p.vehicule || '—'}</td>
-        <td data-label="EFFECTIFS" class="effectifs-cell">${names}</td>
-        <td data-label="STATUT">
-          <select class="statut-select statut-${slugify(statut)}" onchange="changeStatut('${id}', this.value)">
-            ${['Disponible','Indisponible','Sur intervention','En procédure'].map(s =>
-              `<option value="${s}" ${s === statut ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-        </td>
-        <td data-label="OPJ" class="meta-cell">${opjText}</td>
-        <td data-label="ARME" class="meta-cell">${armeText}</td>
-        <td data-label="MISSION">${p.mission || '—'}</td>
-        <td class="actions-cell">
-          <button class="btn-icon" onclick="triggerPanic('${id}')" title="PANIC">🚨</button>
-          <button class="btn-icon" onclick="openPatrolModal('${id}')" title="Modifier">✏️</button>
-          <button class="btn-icon danger" onclick="deletePatrol('${id}')" title="Supprimer">🗑</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+window.openPatrolModal = function(id=null) {
+  document.getElementById('patrol-modal').classList.remove('hidden');
+  renderAllSelects();
+  if (id) {
+    const p = patrouilles[id];
+    document.getElementById('modal-title').textContent='MODIFIER PATROUILLE';
+    document.getElementById('patrol-id-edit').value=id;
+    document.getElementById('indicatif').value=p.indicatif||'';
+    document.getElementById('vehicule').value=p.vehicule||'';
+    document.getElementById('mission').value=p.mission||'';
+    document.getElementById('statut').value=p.statut||'Disponible';
+    document.getElementById('opj').value=p.opj||'Non';
+    document.getElementById('arme').value=p.arme||'Non';
+    toggleOPJ(); toggleArme();
+    if(p.opjAgent) document.getElementById('opj-agent').value=p.opjAgent;
+    if(p.armeAgent) document.getElementById('arme-agent').value=p.armeAgent;
+    const sel=document.getElementById('effectifs-select');
+    if(p.effectifs) Array.from(sel.options).forEach(o=>{ o.selected=p.effectifs.includes(o.value); });
+  } else {
+    document.getElementById('modal-title').textContent='NOUVELLE PATROUILLE';
+    document.getElementById('patrol-id-edit').value='';
+    document.getElementById('patrol-form').reset();
+    toggleOPJ(); toggleArme();
   }
+};
+window.closePatrolModal = () => document.getElementById('patrol-modal').classList.add('hidden');
+window.toggleOPJ = () => document.getElementById('opj-agent-row').classList.toggle('hidden', document.getElementById('opj').value!=='Oui');
+window.toggleArme = () => document.getElementById('arme-agent-row').classList.toggle('hidden', document.getElementById('arme').value!=='Oui');
 
-  function slugify(s) {
-    return s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+window.savePatrol = async function() {
+  const id = document.getElementById('patrol-id-edit').value;
+  const effectifsSelected = Array.from(document.getElementById('effectifs-select').selectedOptions).map(o=>o.value);
+  const opj = document.getElementById('opj').value;
+  const arme = document.getElementById('arme').value;
+  const data = {
+    indicatif: document.getElementById('indicatif').value.trim(),
+    vehicule:  document.getElementById('vehicule').value.trim(),
+    mission:   document.getElementById('mission').value.trim(),
+    statut:    document.getElementById('statut').value,
+    opj, opjAgent:  opj==='Oui'?document.getElementById('opj-agent').value:'',
+    arme, armeAgent: arme==='Oui'?document.getElementById('arme-agent').value:'',
+    effectifs: effectifsSelected, panic: false,
+  };
+  if (!data.indicatif) { showNotif('Indicatif requis.','warn'); return; }
+  if (id) { await update(ref(db,`${base()}/patrouilles/${id}`),data); showNotif(`Patrouille mise à jour.`,'success','notif'); }
+  else    { await push(ref(db,`${base()}/patrouilles`),data); showNotif(`Patrouille créée.`,'success','notif'); }
+  closePatrolModal();
+};
+
+window.deletePatrol = async function(id) {
+  if (!confirm('Supprimer cette patrouille ?')) return;
+  await remove(ref(db,`${base()}/patrouilles/${id}`));
+  showNotif('Patrouille supprimée.','warn');
+};
+
+window.changeStatut = async function(id, val) {
+  await update(ref(db,`${base()}/patrouilles/${id}`),{statut:val});
+  showNotif(`Statut → ${val}`,'info','notif');
+};
+
+window.triggerPanic = async function(id) {
+  await update(ref(db,`${base()}/patrouilles/${id}`),{panic:true});
+  showNotif('🚨 PANIC ACTIVÉ','panic','panic');
+  setTimeout(()=>update(ref(db,`${base()}/patrouilles/${id}`),{panic:false}),8000);
+};
+
+function slugify(s) { return (s||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,''); }
+
+function renderPatrouilles() {
+  const tbody = document.getElementById('patrol-tbody'); if(!tbody) return;
+  tbody.innerHTML='';
+  const entries = Object.entries(patrouilles).filter(([,p])=>p&&typeof p==='object');
+  document.getElementById('patrol-count').textContent = entries.length;
+  if (!entries.length) {
+    tbody.innerHTML=`<tr><td colspan="8" class="empty-row">Aucune patrouille active</td></tr>`;
+    return;
   }
+  entries.forEach(([id,p]) => {
+    const names = Array.isArray(p.effectifs)?p.effectifs.map(uid=>effectifs[uid]?.username||uid).join(', '):'—';
+    const opjName  = p.opj==='Oui'&&p.opjAgent  ? effectifs[p.opjAgent]?.username||''  : '';
+    const armeName = p.arme==='Oui'&&p.armeAgent ? effectifs[p.armeAgent]?.username||'' : '';
+    const opjText  = p.opj==='Oui'  ? `OPJ: Oui${opjName?` (${opjName})`:''}`   : 'OPJ: Non';
+    const armeText = p.arme==='Oui' ? `Arme: Oui${armeName?` (${armeName})`:''}` : 'Arme: Non';
+    const statut   = p.statut||'Disponible';
+    const tr=document.createElement('tr');
+    tr.className=p.panic?'panic-row':'';
+    tr.innerHTML=`
+      <td data-label="INDICATIF"><span class="indicatif-badge">${p.indicatif||'—'}</span></td>
+      <td data-label="VÉHICULE">${p.vehicule||'—'}</td>
+      <td data-label="EFFECTIFS" class="effectifs-cell">${names}</td>
+      <td data-label="STATUT">
+        <select class="statut-select statut-${slugify(statut)}" onchange="changeStatut('${id}',this.value)">
+          ${['Disponible','Indisponible','Sur intervention','En procédure'].map(s=>`<option value="${s}"${s===statut?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td data-label="OPJ" class="meta-cell">${opjText}</td>
+      <td data-label="ARME" class="meta-cell">${armeText}</td>
+      <td data-label="MISSION">${p.mission||'—'}</td>
+      <td class="actions-cell">
+        <button class="btn-icon" onclick="triggerPanic('${id}')" title="PANIC">🚨</button>
+        <button class="btn-icon" onclick="openPatrolModal('${id}')" title="Modifier">✏️</button>
+        <button class="btn-icon danger" onclick="deletePatrol('${id}')" title="Supprimer">🗑</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
 
-  // ─── DISPATCH ──────────────────────────────────────────────────────────────
-  window.doDispatch = function() {
-    playDispatch();
-    showNotif('📡 DISPATCH — Signal radio émis', 'dispatch', false);
-  };
+// ══════════════════════════════════════════════════════
+//  TN / OPÉRATEUR
+// ══════════════════════════════════════════════════════
+window.setTN = async function() {
+  if (!currentUserData) return;
+  await set(ref(db,`${base()}/tn`), currentUserData.username);
+  showNotif(`Opérateur: ${currentUserData.username}`,'success');
+};
+window.removeTN = async function() {
+  await remove(ref(db,`${base()}/tn`));
+  showNotif('Opérateur retiré.','warn');
+};
 
-  // ─── TN ────────────────────────────────────────────────────────────────────
-  window.setTN = async function() {
-    if (!currentUserData) return;
-    await set(ref(db, 'tn'), currentUserData.username);
-    showNotif(`TN défini: ${currentUserData.username}`, 'success');
-  };
+// ══════════════════════════════════════════════════════
+//  DISPATCH / PANIC GLOBAL
+// ══════════════════════════════════════════════════════
+window.doDispatch = function() { playDispatch(); showNotif('📡 DISPATCH — Signal radio émis','dispatch'); };
+window.doGlobalPanic = function() { playPanic(); showNotif('🚨 PANIC GLOBAL DÉCLENCHÉ','panic'); };
 
-  window.removeTN = async function() {
-    await remove(ref(db, 'tn'));
-    showNotif('TN retiré.', 'warn');
-  };
+// ══════════════════════════════════════════════════════
+//  ADMIN — ANNONCES
+// ══════════════════════════════════════════════════════
+window.sendAnnonce = async function() {
+  const msg=document.getElementById('annonce-msg').value.trim(); if(!msg) return;
+  await set(ref(db,`servers/${currentServer.id}/annonce`),{msg,ts:Date.now()});
+  document.getElementById('annonce-msg').value='';
+  showNotif('Annonce envoyée.','success');
+};
 
-  // ─── ADMIN ─────────────────────────────────────────────────────────────────
-  window.sendAnnonce = async function() {
-    const msg = document.getElementById('annonce-msg').value.trim();
-    if (!msg) return;
-    await set(ref(db, 'annonce'), { msg, ts: Date.now() });
-    document.getElementById('annonce-msg').value = '';
-    showNotif('Annonce envoyée.', 'success');
-  };
-
-  window.toggleAdminPanel = function() {
-    const panel = document.getElementById('admin-panel');
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) renderAdminUserList();
-  };
-
-  window.switchAdminTab = function(tab, btn) {
-    document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.add('hidden'));
-    btn.classList.add('active');
-    document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
-    if (tab === 'membres') renderAdminUserList();
-  };
-
-  // ─── TABS ──────────────────────────────────────────────────────────────────
-  window.switchTab = function(tab) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-    document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
-    document.getElementById(`tab-${tab}`).classList.remove('hidden');
-  };
+// ══════════════════════════════════════════════════════
+//  UI TOGGLES
+// ══════════════════════════════════════════════════════
+window.toggleAdminPanel = function() {
+  const p=document.getElementById('admin-panel');
+  p.classList.toggle('hidden');
+  if(!p.classList.contains('hidden')) renderAdminUserList();
+};
+window.toggleOwnerPanel = function() {
+  document.getElementById('owner-panel-inline').classList.toggle('hidden');
+};
+window.switchAdminTab = function(tab,btn) {
+  document.querySelectorAll('.admin-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-pane').forEach(p=>p.classList.add('hidden'));
+  btn.classList.add('active');
+  document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
+  if(tab==='membres') renderAdminUserList();
+};
+window.toggleSidebar = function() {
+  const i=document.getElementById('sidebar-inner');
+  const b=document.getElementById('sidebar-toggle-btn');
+  i.classList.toggle('open'); b.classList.toggle('open');
+};
+window.switchAuthTab = function(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',i===(tab==='login'?0:1)));
+  document.getElementById('auth-login').classList.toggle('active',tab==='login');
+  document.getElementById('auth-register').classList.toggle('active',tab==='register');
+};
 </script>
 
 <style>
+/* ══════════════════════════════════════════════════════
+   VARIABLES & BASE
+══════════════════════════════════════════════════════ */
 :root {
-  --bg: #07090f;
-  --bg2: #0d1117;
-  --bg3: #111827;
-  --border: #1e2d3d;
+  --bg:      #07090f;
+  --bg2:     #0d1117;
+  --bg3:     #111827;
+  --border:  #1e2d3d;
   --border2: #2a3f55;
-  --accent: #00d4ff;
+  --accent:  #00d4ff;
   --accent2: #0099bb;
-  --green: #22c55e;
-  --red: #ef4444;
-  --orange: #f97316;
-  --blue: #3b82f6;
-  --yellow: #eab308;
-  --text: #e2e8f0;
-  --text2: #8899aa;
-  --text3: #4a6070;
-  --panel: rgba(13,17,23,0.95);
-  --glow: 0 0 20px rgba(0,212,255,0.15);
+  --green:   #22c55e;
+  --red:     #ef4444;
+  --orange:  #f97316;
+  --blue:    #3b82f6;
+  --yellow:  #eab308;
+  --text:    #e2e8f0;
+  --text2:   #8899aa;
+  --text3:   #4a6070;
 }
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 body {
-  font-family: 'Rajdhani', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-  background-image:
-    radial-gradient(ellipse at 20% 0%, rgba(0,80,120,0.12) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 100%, rgba(0,60,100,0.08) 0%, transparent 60%);
+  font-family:'Rajdhani',sans-serif; background:var(--bg); color:var(--text);
+  min-height:100vh; overflow-x:hidden;
+  background-image: radial-gradient(ellipse at 20% 0%,rgba(0,80,120,.12) 0%,transparent 60%),
+                    radial-gradient(ellipse at 80% 100%,rgba(0,60,100,.08) 0%,transparent 60%);
 }
-
-/* ── SCANLINE OVERLAY ── */
 body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 999; pointer-events: none;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
 }
+.hidden { display:none !important; }
+.screen { min-height:100vh; }
 
-/* ── ANNOUNCEMENT BANNER ── */
+/* ══════════════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--accent2); }
+
+/* ══════════════════════════════════════════════════════
+   ANNONCE BANNER
+══════════════════════════════════════════════════════ */
 #annonce-banner {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  background: linear-gradient(90deg, #7c0000, #cc0000, #7c0000);
-  color: #fff; padding: 12px 24px;
-  font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 700;
-  text-align: center; letter-spacing: 2px;
-  border-bottom: 2px solid #ff4444;
-  animation: slideDown 0.3s ease;
-  display: flex; align-items: center; justify-content: center; gap: 12px;
+  position:fixed; top:0; left:0; right:0; z-index:1000;
+  background:linear-gradient(90deg,#7c0000,#cc0000,#7c0000);
+  color:#fff; padding:12px 24px;
+  font-family:'Orbitron',monospace; font-size:14px; font-weight:700;
+  text-align:center; letter-spacing:2px;
+  border-bottom:2px solid #ff4444;
+  animation:slideDown .3s ease;
+  display:flex; align-items:center; justify-content:center; gap:12px;
 }
-#annonce-banner.hidden { display: none; }
-#annonce-banner::before, #annonce-banner::after {
-  content: '⚠'; font-size: 18px;
-}
-@keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+#annonce-banner::before, #annonce-banner::after { content:'⚠'; font-size:18px; }
+@keyframes slideDown { from{transform:translateY(-100%)} to{transform:translateY(0)} }
 
-/* ── AUTH SCREEN ── */
-#auth-screen {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  position: relative;
+/* ══════════════════════════════════════════════════════
+   LOGO SVG
+══════════════════════════════════════════════════════ */
+.logo-shield {
+  display:flex; justify-content:center; margin-bottom:14px;
 }
-#auth-screen::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at center, rgba(0,100,160,0.1) 0%, transparent 70%);
-  pointer-events: none;
-}
-.auth-card {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 4px;
-  padding: 40px;
-  width: 420px;
-  position: relative;
-  box-shadow: 0 0 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(0,212,255,0.1);
-}
-.auth-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-}
-.auth-logo {
-  text-align: center; margin-bottom: 32px;
-}
-.logo-wrapper {
-  display: flex; justify-content: center; margin-bottom: 14px;
-}
-.logo-svg {
-  width: 72px; height: 82px;
-  filter: drop-shadow(0 0 12px rgba(0,212,255,0.4));
-  animation: logoFloat 4s ease-in-out infinite;
+.logo-shield svg {
+  width:72px; height:82px;
+  filter:drop-shadow(0 0 12px rgba(0,212,255,.4));
+  animation:logoFloat 4s ease-in-out infinite;
 }
 @keyframes logoFloat {
-  0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 12px rgba(0,212,255,0.4)); }
-  50% { transform: translateY(-4px); filter: drop-shadow(0 0 20px rgba(0,212,255,0.65)); }
+  0%,100%{transform:translateY(0);filter:drop-shadow(0 0 12px rgba(0,212,255,.4))}
+  50%{transform:translateY(-4px);filter:drop-shadow(0 0 20px rgba(0,212,255,.65))}
 }
-.topbar-logo {
-  display: flex; align-items: center;
+
+/* ══════════════════════════════════════════════════════
+   AUTH SCREEN
+══════════════════════════════════════════════════════ */
+#screen-auth {
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
 }
-.topbar-logo-svg {
-  filter: drop-shadow(0 0 6px rgba(0,212,255,0.5));
+#screen-auth::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(0,100,160,.1) 0%,transparent 70%);
 }
+.auth-card {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:4px;
+  padding:40px; width:420px; position:relative;
+  box-shadow:0 0 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(0,212,255,.1);
+}
+.auth-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+}
+.auth-logo { text-align:center; margin-bottom:32px; }
 .auth-logo h1 {
-  font-family: 'Orbitron', monospace;
-  font-size: 26px; font-weight: 900; letter-spacing: 4px;
-  color: var(--accent);
-  text-shadow: 0 0 20px rgba(0,212,255,0.4);
+  font-family:'Orbitron',monospace; font-size:26px; font-weight:900; letter-spacing:4px;
+  color:var(--accent); text-shadow:0 0 20px rgba(0,212,255,.4);
 }
-.auth-logo p {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px; color: var(--text3); letter-spacing: 3px;
-  margin-top: 4px;
-}
-.auth-tabs {
-  display: flex; gap: 2px; margin-bottom: 24px;
-  background: var(--bg); border-radius: 3px; padding: 3px;
-}
+.auth-logo p { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3); letter-spacing:3px; margin-top:4px; }
+.auth-tabs { display:flex; gap:2px; margin-bottom:24px; background:var(--bg); border-radius:3px; padding:3px; }
 .auth-tab {
-  flex: 1; padding: 8px; text-align: center;
-  font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
-  letter-spacing: 2px; cursor: pointer;
-  border-radius: 2px; transition: all 0.2s;
-  color: var(--text3);
+  flex:1; padding:8px; text-align:center;
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px;
+  cursor:pointer; border-radius:2px; transition:all .2s; color:var(--text3);
 }
-.auth-tab.active { background: var(--accent2); color: #fff; }
-.auth-pane { display: none; }
-.auth-pane.active { display: block; }
-.form-group { margin-bottom: 16px; }
-.form-label {
-  display: block; font-family: 'Share Tech Mono', monospace;
-  font-size: 11px; letter-spacing: 2px; color: var(--text3);
-  margin-bottom: 6px; text-transform: uppercase;
-}
+.auth-tab.active { background:var(--accent2); color:#fff; }
+.auth-pane { display:none; }
+.auth-pane.active { display:block; }
+.form-group { margin-bottom:16px; }
+.form-label { display:block; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:2px; color:var(--text3); margin-bottom:6px; }
 .form-input {
-  width: 100%; padding: 10px 14px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 3px; color: var(--text);
-  font-family: 'Share Tech Mono', monospace; font-size: 13px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  outline: none;
+  width:100%; padding:10px 14px;
+  background:var(--bg); border:1px solid var(--border); border-radius:3px;
+  color:var(--text); font-family:'Share Tech Mono',monospace; font-size:13px;
+  outline:none; transition:border-color .2s,box-shadow .2s;
 }
-.form-input:focus {
-  border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.1);
-}
+.form-input:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,212,255,.1); }
 .btn-primary {
-  width: 100%; padding: 12px;
-  background: transparent; border: 1px solid var(--accent);
-  color: var(--accent); cursor: pointer; border-radius: 3px;
-  font-family: 'Orbitron', monospace; font-size: 12px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
-  transition: all 0.2s; margin-top: 8px;
-  position: relative; overflow: hidden;
+  width:100%; padding:12px; background:transparent; border:1px solid var(--accent);
+  color:var(--accent); cursor:pointer; border-radius:3px;
+  font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:3px;
+  transition:all .2s; margin-top:8px;
 }
-.btn-primary:hover {
-  background: var(--accent); color: var(--bg);
-  box-shadow: 0 0 20px rgba(0,212,255,0.3);
-}
-.form-error {
-  font-size: 12px; color: #f87171; margin-top: 10px;
-  font-family: 'Share Tech Mono', monospace; text-align: center;
-  min-height: 16px;
-}
+.btn-primary:hover { background:var(--accent); color:var(--bg); box-shadow:0 0 20px rgba(0,212,255,.3); }
+.form-error { font-size:12px; color:#f87171; margin-top:10px; font-family:'Share Tech Mono',monospace; text-align:center; min-height:16px; }
 
-/* ── MAIN APP ── */
-#main-app.hidden { display: none; }
+/* ══════════════════════════════════════════════════════
+   SELECTION SCREENS (SERVER / SERVICE)
+══════════════════════════════════════════════════════ */
+.select-screen {
+  display:flex; flex-direction:column; align-items:center;
+  padding:40px 20px; min-height:100vh;
+}
+.select-header { text-align:center; margin-bottom:36px; }
+.select-header h2 {
+  font-family:'Orbitron',monospace; font-size:22px; font-weight:900;
+  letter-spacing:4px; color:var(--accent);
+  text-shadow:0 0 16px rgba(0,212,255,.3);
+}
+.select-header p { font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--text3); margin-top:6px; letter-spacing:2px; }
+.breadcrumb {
+  font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3);
+  margin-bottom:24px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}
+.breadcrumb span { color:var(--accent); }
 
-/* ── TOPBAR ── */
+/* Server cards */
+.server-list { width:100%; max-width:720px; display:flex; flex-direction:column; gap:12px; margin-bottom:28px; }
+.server-card {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:4px;
+  padding:18px 20px; display:flex; align-items:center; justify-content:space-between;
+  cursor:pointer; transition:all .2s;
+}
+.server-card:hover { border-color:var(--accent); background:rgba(0,212,255,.04); box-shadow:0 0 16px rgba(0,212,255,.08); }
+.server-card-info { flex:1; }
+.server-card-name { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; color:var(--text); }
+.server-card-type { font-family:'Share Tech Mono',monospace; font-size:12px; margin-top:4px; display:inline-block; padding:2px 8px; border-radius:3px; }
+.badge-WL { background:rgba(59,130,246,.15); color:var(--blue); border:1px solid var(--blue); }
+.badge-FA { background:rgba(34,197,94,.15); color:var(--green); border:1px solid var(--green); }
+.empty-card { color:var(--text3); font-family:'Share Tech Mono',monospace; font-size:13px; padding:30px; text-align:center; }
+
+/* Owner panel */
+.owner-create-box {
+  width:100%; max-width:720px;
+  background:var(--bg2); border:1px solid var(--yellow); border-radius:4px; padding:18px 20px;
+}
+.owner-create-box h3 {
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:var(--yellow); margin-bottom:14px;
+}
+.create-server-form { display:flex; gap:10px; flex-wrap:wrap; }
+.create-server-form input, .create-server-form select {
+  flex:1; min-width:140px; padding:9px 14px;
+  background:var(--bg); border:1px solid var(--border2); border-radius:3px;
+  color:var(--text); font-family:'Rajdhani',sans-serif; font-size:14px; outline:none;
+}
+.create-server-form input:focus, .create-server-form select:focus { border-color:var(--yellow); }
+.btn-create {
+  padding:9px 18px; border:1px solid var(--yellow); color:var(--yellow);
+  background:transparent; border-radius:3px; cursor:pointer;
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px;
+  transition:all .2s; white-space:nowrap;
+}
+.btn-create:hover { background:var(--yellow); color:#000; }
+
+/* Services grid */
+.services-grid {
+  width:100%; max-width:900px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px;
+}
+.service-card {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:6px;
+  padding:22px 18px; cursor:pointer; transition:all .25s;
+  position:relative; overflow:hidden;
+  --svc-color: #00d4ff;
+}
+.service-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  background:var(--svc-color); opacity:.7;
+}
+.service-card:hover {
+  border-color:var(--svc-color); transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,.3), 0 0 0 1px var(--svc-color);
+}
+.svc-icon { font-size:28px; margin-bottom:10px; }
+.svc-label { font-family:'Orbitron',monospace; font-size:12px; font-weight:700; color:var(--text); letter-spacing:1px; margin-bottom:8px; line-height:1.4; }
+.svc-op { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3); margin-bottom:4px; }
+.svc-op strong { color:var(--svc-color); }
+.svc-ex { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3); }
+.svc-ex span { color:var(--text2); }
+
+.btn-back {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 16px; border:1px solid var(--border2); color:var(--text3);
+  background:transparent; border-radius:3px; cursor:pointer;
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px;
+  transition:all .2s; margin-bottom:20px;
+}
+.btn-back:hover { border-color:var(--accent2); color:var(--accent); }
+
+/* ══════════════════════════════════════════════════════
+   PANEL — TOPBAR
+══════════════════════════════════════════════════════ */
 .topbar {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  height: 56px;
-  display: flex; align-items: center; gap: 16px;
-  position: sticky; top: 0; z-index: 100;
-  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  background:var(--bg2); border-bottom:1px solid var(--border);
+  padding:0 20px; height:56px;
+  display:flex; align-items:center; gap:12px;
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 2px 20px rgba(0,0,0,.4);
 }
 .topbar-logo {
-  font-family: 'Orbitron', monospace; font-size: 16px; font-weight: 900;
-  letter-spacing: 3px; color: var(--accent);
-  text-shadow: 0 0 10px rgba(0,212,255,0.3);
-  white-space: nowrap;
+  display:flex; align-items:center; gap:10px;
+  font-family:'Orbitron',monospace; font-size:15px; font-weight:900;
+  letter-spacing:3px; color:var(--accent);
+  text-shadow:0 0 10px rgba(0,212,255,.3); white-space:nowrap;
 }
-.topbar-sep { flex: 1; }
-.topbar-tn {
-  font-family: 'Share Tech Mono', monospace; font-size: 12px;
-  color: var(--text3); display: flex; align-items: center; gap: 6px;
+.topbar-logo svg { flex-shrink:0; filter:drop-shadow(0 0 6px rgba(0,212,255,.5)); }
+.topbar-service {
+  font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--text3);
+  border-left:1px solid var(--border); padding-left:12px; white-space:nowrap;
 }
-.topbar-tn strong { color: var(--accent); }
+.topbar-tn { font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--text3); white-space:nowrap; }
+.topbar-tn strong { color:var(--accent); }
+.topbar-sep { flex:1; }
 .topbar-user {
-  font-family: 'Share Tech Mono', monospace; font-size: 12px;
-  color: var(--text2); display: flex; align-items: center; gap: 8px;
+  font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--text2);
+  display:flex; align-items:center; gap:8px; white-space:nowrap;
 }
-.topbar-user::before {
-  content: '';
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green);
-  display: inline-block;
-}
+.topbar-user::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); display:inline-block; }
 .btn-topbar {
-  padding: 6px 14px; border-radius: 3px; cursor: pointer; border: 1px solid;
-  font-family: 'Orbitron', monospace; font-size: 10px; font-weight: 700;
-  letter-spacing: 1px; transition: all 0.2s; white-space: nowrap;
+  padding:6px 12px; border-radius:3px; cursor:pointer; border:1px solid;
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+  letter-spacing:1px; transition:all .2s; white-space:nowrap;
 }
-.btn-panic {
-  border-color: var(--red); color: var(--red);
-  background: rgba(239,68,68,0.08);
-}
-.btn-panic:hover { background: var(--red); color: #fff; box-shadow: 0 0 14px rgba(239,68,68,0.4); }
-.btn-dispatch {
-  border-color: var(--blue); color: var(--blue);
-  background: rgba(59,130,246,0.08);
-}
-.btn-dispatch:hover { background: var(--blue); color: #fff; }
-.btn-admin {
-  border-color: var(--yellow); color: var(--yellow);
-  background: rgba(234,179,8,0.08);
-}
-.btn-admin:hover { background: var(--yellow); color: #000; }
-.btn-logout {
-  border-color: var(--border2); color: var(--text3);
-  background: transparent;
-}
-.btn-logout:hover { border-color: var(--text2); color: var(--text); }
+.btn-panic  { border-color:var(--red);    color:var(--red);    background:rgba(239,68,68,.08); }
+.btn-panic:hover  { background:var(--red);    color:#fff; box-shadow:0 0 14px rgba(239,68,68,.4); }
+.btn-dispatch { border-color:var(--blue);   color:var(--blue);   background:rgba(59,130,246,.08); }
+.btn-dispatch:hover { background:var(--blue); color:#fff; }
+.btn-admin  { border-color:var(--yellow);  color:var(--yellow); background:rgba(234,179,8,.08); }
+.btn-admin:hover  { background:var(--yellow); color:#000; }
+.btn-owner  { border-color:#a855f7; color:#a855f7; background:rgba(168,85,247,.08); }
+.btn-owner:hover  { background:#a855f7; color:#fff; }
+.btn-back-topbar { border-color:var(--border2); color:var(--text3); background:transparent; }
+.btn-back-topbar:hover { border-color:var(--accent2); color:var(--accent); }
+.btn-logout { border-color:var(--border2); color:var(--text3); background:transparent; }
+.btn-logout:hover { border-color:var(--text2); color:var(--text); }
 
-/* ── LAYOUT ── */
-.app-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 0;
-  min-height: calc(100vh - 56px);
+/* ══════════════════════════════════════════════════════
+   ADMIN / OWNER PANELS
+══════════════════════════════════════════════════════ */
+.panel-box {
+  border-radius:4px; padding:16px 20px; margin-bottom:0;
+  position:relative;
 }
+#admin-panel { border:1px solid var(--yellow); background:var(--bg2); }
+#admin-panel::before {
+  content:'⚙ PANNEAU ADMINISTRATEUR'; display:block;
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:3px;
+  color:var(--yellow); margin-bottom:14px;
+}
+#owner-panel-inline { border:1px solid #a855f7; background:var(--bg2); }
+#owner-panel-inline::before {
+  content:'👑 PANNEAU GÉRANT'; display:block;
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:3px;
+  color:#a855f7; margin-bottom:14px;
+}
+.admin-tabs { display:flex; gap:4px; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+.admin-tab {
+  padding:6px 16px; border-radius:3px; cursor:pointer;
+  border:1px solid var(--border2); background:transparent; color:var(--text3);
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:1px; transition:all .2s;
+}
+.admin-tab:hover { border-color:var(--yellow); color:var(--yellow); }
+.admin-tab.active { background:rgba(234,179,8,.12); border-color:var(--yellow); color:var(--yellow); }
+.admin-tab-pane.hidden { display:none; }
+.annonce-form { display:flex; gap:10px; }
+.annonce-form input {
+  flex:1; padding:9px 14px;
+  background:var(--bg); border:1px solid var(--border2); border-radius:3px;
+  color:var(--text); font-family:'Rajdhani',sans-serif; font-size:14px; outline:none;
+}
+.annonce-form input:focus { border-color:var(--yellow); }
+.btn-send {
+  padding:9px 16px; border:1px solid var(--yellow); color:var(--yellow);
+  background:transparent; border-radius:3px; cursor:pointer;
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px;
+  transition:all .2s; white-space:nowrap;
+}
+.btn-send:hover { background:var(--yellow); color:#000; }
+#admin-user-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
+.admin-user-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; border-radius:3px; background:var(--bg); border:1px solid var(--border); transition:border-color .2s;
+}
+.admin-user-row:hover { border-color:var(--border2); }
+.admin-user-row.banned { border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.05); }
+.admin-user-info { display:flex; align-items:center; gap:10px; flex:1; }
+.admin-user-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.admin-user-name { font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:600; }
+.admin-user-status { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3); }
+.admin-user-actions { display:flex; gap:6px; }
+.btn-admin-action {
+  padding:5px 12px; border-radius:3px; cursor:pointer; border:1px solid;
+  font-family:'Orbitron',monospace; font-size:9px; font-weight:700; letter-spacing:1px; transition:all .2s;
+}
+.btn-admin-action.ban    { border-color:var(--orange); color:var(--orange); background:transparent; }
+.btn-admin-action.ban:hover    { background:var(--orange); color:#000; }
+.btn-admin-action.unban  { border-color:var(--green);  color:var(--green);  background:transparent; }
+.btn-admin-action.unban:hover  { background:var(--green);  color:#000; }
+.btn-admin-action.delete { border-color:var(--red);    color:var(--red);    background:transparent; }
+.btn-admin-action.delete:hover { background:var(--red);    color:#fff; }
+.no-effectif { color:var(--text3); font-family:'Share Tech Mono',monospace; font-size:11px; padding:10px; text-align:center; }
 
-/* ── SIDEBAR ── */
+/* ══════════════════════════════════════════════════════
+   PANEL LAYOUT
+══════════════════════════════════════════════════════ */
+.app-layout { display:grid; grid-template-columns:260px 1fr; min-height:calc(100vh - 56px); }
 .sidebar {
-  background: var(--bg2);
-  border-right: 1px solid var(--border);
-  padding: 20px 16px;
-  display: flex; flex-direction: column; gap: 16px;
+  background:var(--bg2); border-right:1px solid var(--border);
+  padding:20px 16px; display:flex; flex-direction:column; gap:16px;
 }
 .sidebar-section-title {
-  font-family: 'Orbitron', monospace; font-size: 10px; font-weight: 700;
-  letter-spacing: 3px; color: var(--text3); text-transform: uppercase;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:var(--text3); text-transform:uppercase;
+  padding-bottom:8px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
 }
-.sidebar-section-title span { color: var(--accent); }
+.sidebar-section-title span { color:var(--accent); }
 .search-input {
-  width: 100%; padding: 7px 10px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 3px; color: var(--text);
-  font-family: 'Share Tech Mono', monospace; font-size: 12px;
-  outline: none; transition: border-color 0.2s;
+  width:100%; padding:7px 10px;
+  background:var(--bg); border:1px solid var(--border); border-radius:3px;
+  color:var(--text); font-family:'Share Tech Mono',monospace; font-size:12px;
+  outline:none; transition:border-color .2s; margin:8px 0;
 }
-.search-input:focus { border-color: var(--accent2); }
-.search-input::placeholder { color: var(--text3); }
-#effectif-list { display: flex; flex-direction: column; gap: 3px; max-height: 340px; overflow-y: auto; }
-#effectif-list::-webkit-scrollbar { width: 4px; }
-#effectif-list::-webkit-scrollbar-track { background: transparent; }
-#effectif-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.search-input:focus { border-color:var(--accent2); }
+.search-input::placeholder { color:var(--text3); }
+#effectif-list { display:flex; flex-direction:column; gap:3px; max-height:320px; overflow-y:auto; }
 .effectif-item {
-  padding: 7px 10px; border-radius: 3px; cursor: pointer;
-  font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 500;
-  display: flex; align-items: center; gap: 8px;
-  border: 1px solid transparent;
-  transition: all 0.15s; position: relative;
+  padding:7px 10px; border-radius:3px; cursor:pointer;
+  font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:500;
+  display:flex; align-items:center; gap:8px;
+  border:1px solid transparent; transition:all .15s;
 }
-.effectif-item:hover { background: rgba(0,212,255,0.05); border-color: var(--border); }
-.effectif-item.selected { background: rgba(0,212,255,0.1); border-color: var(--accent2); color: var(--accent); }
-.effectif-item .dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--green); box-shadow: 0 0 4px var(--green);
-  flex-shrink: 0;
-}
-.badge-admin {
-  margin-left: auto; font-size: 9px; font-family: 'Orbitron', monospace;
-  color: var(--yellow); border: 1px solid var(--yellow); padding: 1px 4px; border-radius: 2px;
-}
-.tn-box {
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 3px; padding: 12px;
-}
-.tn-name {
-  font-family: 'Orbitron', monospace; font-size: 14px;
-  color: var(--accent); font-weight: 700; margin: 6px 0;
-  min-height: 20px;
-}
-.tn-actions { display: flex; gap: 6px; margin-top: 8px; }
+.effectif-item:hover { background:rgba(0,212,255,.05); border-color:var(--border); }
+.effectif-item.selected { background:rgba(0,212,255,.1); border-color:var(--accent2); color:var(--accent); }
+.effectif-item .dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 4px var(--green); flex-shrink:0; }
+.badge-admin { margin-left:auto; font-size:9px; font-family:'Orbitron',monospace; color:var(--yellow); border:1px solid var(--yellow); padding:1px 4px; border-radius:2px; }
+.tn-box { background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:12px; }
+.tn-name { font-family:'Orbitron',monospace; font-size:14px; color:var(--accent); font-weight:700; margin:6px 0; min-height:20px; }
+.tn-actions { display:flex; gap:6px; margin-top:8px; }
 .btn-sm {
-  flex: 1; padding: 6px 8px; border-radius: 3px; cursor: pointer; border: 1px solid;
-  font-family: 'Orbitron', monospace; font-size: 9px; font-weight: 700;
-  letter-spacing: 1px; transition: all 0.2s;
+  flex:1; padding:6px 8px; border-radius:3px; cursor:pointer; border:1px solid;
+  font-family:'Orbitron',monospace; font-size:9px; font-weight:700; letter-spacing:1px; transition:all .2s;
 }
-.btn-sm.green { border-color: var(--green); color: var(--green); background: transparent; }
-.btn-sm.green:hover { background: var(--green); color: #000; }
-.btn-sm.red { border-color: var(--red); color: var(--red); background: transparent; }
-.btn-sm.red:hover { background: var(--red); color: #fff; }
+.btn-sm.green { border-color:var(--green); color:var(--green); background:transparent; }
+.btn-sm.green:hover { background:var(--green); color:#000; }
+.btn-sm.red { border-color:var(--red); color:var(--red); background:transparent; }
+.btn-sm.red:hover { background:var(--red); color:#fff; }
+.sidebar-toggle-btn { display:none; }
 
-/* ── MAIN CONTENT ── */
-.main-content { padding: 20px; }
-.page-header {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
-}
-.page-title {
-  font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 900;
-  letter-spacing: 3px; color: var(--text);
-}
+/* Main */
+.main-content { padding:20px; }
+.panel-row { display:flex; flex-direction:column; gap:12px; padding:12px 20px 0; }
+.page-header { display:flex; align-items:center; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+.page-title { font-family:'Orbitron',monospace; font-size:18px; font-weight:900; letter-spacing:3px; }
 .stat-chip {
-  background: rgba(0,212,255,0.1); border: 1px solid var(--accent2);
-  border-radius: 3px; padding: 4px 10px;
-  font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent);
+  background:rgba(0,212,255,.1); border:1px solid var(--accent2);
+  border-radius:3px; padding:4px 10px;
+  font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--accent);
 }
 .btn-new {
-  margin-left: auto; padding: 9px 18px;
-  background: transparent; border: 1px solid var(--accent);
-  color: var(--accent); cursor: pointer; border-radius: 3px;
-  font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
-  letter-spacing: 2px; transition: all 0.2s;
+  margin-left:auto; padding:9px 18px; background:transparent; border:1px solid var(--accent);
+  color:var(--accent); cursor:pointer; border-radius:3px;
+  font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; transition:all .2s;
 }
-.btn-new:hover { background: var(--accent); color: var(--bg); box-shadow: 0 0 16px rgba(0,212,255,0.3); }
+.btn-new:hover { background:var(--accent); color:var(--bg); box-shadow:0 0 16px rgba(0,212,255,.3); }
 
-/* ── TABLE ── */
-.table-wrapper {
-  overflow-x: auto; border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg2);
-}
-table { width: 100%; border-collapse: collapse; }
-thead tr {
-  background: var(--bg3);
-  border-bottom: 1px solid var(--border2);
-}
-th {
-  padding: 12px 14px;
-  font-family: 'Orbitron', monospace; font-size: 10px; font-weight: 700;
-  letter-spacing: 2px; color: var(--text3); text-align: left;
-  white-space: nowrap;
-}
-td {
-  padding: 12px 14px;
-  font-family: 'Rajdhani', sans-serif; font-size: 14px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: rgba(0,212,255,0.02); }
-.empty-row {
-  text-align: center; color: var(--text3);
-  font-family: 'Share Tech Mono', monospace; font-size: 13px;
-  padding: 40px !important;
-}
+/* Table */
+.table-wrapper { overflow-x:auto; border-radius:4px; border:1px solid var(--border); background:var(--bg2); }
+table { width:100%; border-collapse:collapse; }
+thead tr { background:var(--bg3); border-bottom:1px solid var(--border2); }
+th { padding:12px 14px; font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:2px; color:var(--text3); text-align:left; white-space:nowrap; }
+td { padding:12px 14px; font-family:'Rajdhani',sans-serif; font-size:14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(0,212,255,.02); }
+.empty-row { text-align:center; color:var(--text3); font-family:'Share Tech Mono',monospace; font-size:13px; padding:40px !important; }
 .indicatif-badge {
-  background: rgba(0,212,255,0.1); border: 1px solid var(--accent2);
-  border-radius: 3px; padding: 3px 8px;
-  font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent);
-  white-space: nowrap;
+  background:rgba(0,212,255,.1); border:1px solid var(--accent2); border-radius:3px;
+  padding:3px 8px; font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--accent); white-space:nowrap;
 }
-.effectifs-cell { font-size: 13px; color: var(--text2); }
-.meta-cell { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.effectifs-cell { font-size:13px; color:var(--text2); }
+.meta-cell { font-size:12px; color:var(--text2); white-space:nowrap; }
 .statut-select {
-  background: var(--bg); border: 1px solid var(--border2);
-  color: var(--text); border-radius: 3px; padding: 4px 8px;
-  font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; outline: none;
+  background:var(--bg); border:1px solid var(--border2); color:var(--text);
+  border-radius:3px; padding:4px 8px;
+  font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; cursor:pointer; outline:none;
 }
-.statut-select.statut-disponible { border-color: var(--green); color: var(--green); }
-.statut-select.statut-indisponible { border-color: var(--red); color: var(--red); }
-.statut-select.statut-sur-intervention { border-color: var(--orange); color: var(--orange); }
-.statut-select.statut-en-procédure { border-color: var(--blue); color: var(--blue); }
-.actions-cell { display: flex; gap: 4px; align-items: center; }
+.statut-select.statut-disponible    { border-color:var(--green);  color:var(--green); }
+.statut-select.statut-indisponible  { border-color:var(--red);    color:var(--red); }
+.statut-select.statut-sur-intervention { border-color:var(--orange); color:var(--orange); }
+.statut-select.statut-en-procédure  { border-color:var(--blue);   color:var(--blue); }
+.actions-cell { display:flex; gap:4px; align-items:center; }
 .btn-icon {
-  background: transparent; border: 1px solid var(--border);
-  color: var(--text2); cursor: pointer; border-radius: 3px;
-  padding: 4px 7px; font-size: 13px;
-  transition: all 0.15s;
+  background:transparent; border:1px solid var(--border); color:var(--text2);
+  cursor:pointer; border-radius:3px; padding:4px 7px; font-size:13px; transition:all .15s;
 }
-.btn-icon:hover { border-color: var(--accent2); background: rgba(0,212,255,0.08); }
-.btn-icon.danger:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.08); }
-
-/* ── PANIC ROW ── */
+.btn-icon:hover { border-color:var(--accent2); background:rgba(0,212,255,.08); }
+.btn-icon.danger:hover { border-color:var(--red); color:var(--red); background:rgba(239,68,68,.08); }
+.btn-icon.sm { padding:2px 5px; font-size:11px; }
 @keyframes panicBlink {
-  0%, 100% { background: rgba(239,68,68,0.12); }
-  50% { background: rgba(239,68,68,0.28); }
+  0%,100%{background:rgba(239,68,68,.12)} 50%{background:rgba(239,68,68,.28)}
 }
-.panic-row td { animation: panicBlink 0.6s ease-in-out infinite; border-color: rgba(239,68,68,0.3) !important; }
+.panic-row td { animation:panicBlink .6s ease-in-out infinite; border-color:rgba(239,68,68,.3) !important; }
 
-/* ── MODAL ── */
+/* Modal */
 .modal-overlay {
-  position: fixed; inset: 0; z-index: 500;
-  background: rgba(0,0,0,0.75);
-  display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
+  position:fixed; inset:0; z-index:500;
+  background:rgba(0,0,0,.75);
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
 }
-.modal-overlay.hidden { display: none; }
+.modal-overlay.hidden { display:none; }
 .modal-card {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 4px;
-  width: 560px; max-height: 90vh; overflow-y: auto;
-  position: relative;
-  box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 30px rgba(0,212,255,0.08);
+  background:var(--bg2); border:1px solid var(--border2); border-radius:4px;
+  width:560px; max-height:90vh; overflow-y:auto; position:relative;
+  box-shadow:0 0 60px rgba(0,0,0,.8),0 0 30px rgba(0,212,255,.08);
 }
-.modal-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+.modal-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); }
+.modal-header { padding:20px 24px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+.modal-title { font-family:'Orbitron',monospace; font-size:14px; font-weight:700; letter-spacing:3px; color:var(--accent); }
+.modal-close { background:transparent; border:none; color:var(--text3); font-size:20px; cursor:pointer; line-height:1; transition:color .2s; }
+.modal-close:hover { color:var(--text); }
+.modal-body { padding:20px 24px; }
+.modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.full-width { grid-column:1/-1; }
+.modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; }
+.btn-modal { padding:9px 20px; border-radius:3px; cursor:pointer; font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px; border:1px solid; transition:all .2s; }
+.btn-modal.save { border-color:var(--accent); color:var(--accent); background:transparent; }
+.btn-modal.save:hover { background:var(--accent); color:var(--bg); }
+.btn-modal.cancel { border-color:var(--border2); color:var(--text3); background:transparent; }
+.btn-modal.cancel:hover { border-color:var(--text2); color:var(--text); }
+.modal-body label { display:block; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:2px; color:var(--text3); margin-bottom:6px; text-transform:uppercase; }
+.modal-body select, .modal-body input {
+  width:100%; padding:9px 12px;
+  background:var(--bg); border:1px solid var(--border); border-radius:3px;
+  color:var(--text); font-family:'Rajdhani',sans-serif; font-size:14px; outline:none; transition:border-color .2s;
 }
-.modal-header {
-  padding: 20px 24px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-}
-.modal-title {
-  font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 700;
-  letter-spacing: 3px; color: var(--accent);
-}
-.modal-close {
-  background: transparent; border: none; color: var(--text3);
-  font-size: 20px; cursor: pointer; line-height: 1;
-  transition: color 0.2s;
-}
-.modal-close:hover { color: var(--text); }
-.modal-body { padding: 20px 24px; }
-.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.full-width { grid-column: 1 / -1; }
-.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
-.btn-modal {
-  padding: 9px 20px; border-radius: 3px; cursor: pointer;
-  font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
-  letter-spacing: 2px; border: 1px solid; transition: all 0.2s;
-}
-.btn-modal.save { border-color: var(--accent); color: var(--accent); background: transparent; }
-.btn-modal.save:hover { background: var(--accent); color: var(--bg); }
-.btn-modal.cancel { border-color: var(--border2); color: var(--text3); background: transparent; }
-.btn-modal.cancel:hover { border-color: var(--text2); color: var(--text); }
-select.form-input { appearance: none; cursor: pointer; }
-.modal-body label {
-  display: block; font-family: 'Share Tech Mono', monospace;
-  font-size: 11px; letter-spacing: 2px; color: var(--text3);
-  margin-bottom: 6px; text-transform: uppercase;
-}
-.modal-body select, .modal-body input, .modal-body textarea {
-  width: 100%; padding: 9px 12px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 3px; color: var(--text);
-  font-family: 'Rajdhani', sans-serif; font-size: 14px;
-  outline: none; transition: border-color 0.2s;
-}
-.modal-body select:focus, .modal-body input:focus { border-color: var(--accent2); }
-#effectifs-select { height: 100px; }
-#effectifs-select option:checked { background: rgba(0,212,255,0.2); }
-.row-hidden { display: none; }
-.hidden { display: none !important; }
+.modal-body select:focus, .modal-body input:focus { border-color:var(--accent2); }
+#effectifs-select { height:100px; }
 
-/* ── ADMIN PANEL ── */
-#admin-panel {
-  background: var(--bg2);
-  border: 1px solid var(--yellow);
-  border-radius: 4px; padding: 16px 20px;
-  margin-bottom: 20px;
-  position: relative;
-}
-#admin-panel::before {
-  content: '⚙ PANNEAU ADMINISTRATEUR';
-  display: block; font-family: 'Orbitron', monospace;
-  font-size: 11px; font-weight: 700; letter-spacing: 3px;
-  color: var(--yellow); margin-bottom: 14px;
-}
-.admin-tabs {
-  display: flex; gap: 4px; margin-bottom: 14px;
-  border-bottom: 1px solid var(--border); padding-bottom: 12px;
-}
-.admin-tab {
-  padding: 6px 16px; border-radius: 3px; cursor: pointer;
-  border: 1px solid var(--border2); background: transparent;
-  color: var(--text3); font-family: 'Orbitron', monospace;
-  font-size: 10px; font-weight: 700; letter-spacing: 1px;
-  transition: all 0.2s;
-}
-.admin-tab:hover { border-color: var(--yellow); color: var(--yellow); }
-.admin-tab.active { background: rgba(234,179,8,0.12); border-color: var(--yellow); color: var(--yellow); }
-.admin-tab-pane.hidden { display: none; }
-.annonce-form { display: flex; gap: 10px; }
-.annonce-form input {
-  flex: 1; padding: 9px 14px;
-  background: var(--bg); border: 1px solid var(--border2);
-  border-radius: 3px; color: var(--text);
-  font-family: 'Rajdhani', sans-serif; font-size: 14px; outline: none;
-}
-.annonce-form input:focus { border-color: var(--yellow); }
-.btn-annonce {
-  padding: 9px 16px; border: 1px solid var(--yellow);
-  color: var(--yellow); background: transparent; border-radius: 3px;
-  cursor: pointer; font-family: 'Orbitron', monospace; font-size: 10px;
-  font-weight: 700; letter-spacing: 2px; transition: all 0.2s; white-space: nowrap;
-}
-.btn-annonce:hover { background: var(--yellow); color: #000; }
-
-/* Admin user list */
-#admin-user-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
-.admin-user-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; border-radius: 3px;
-  background: var(--bg); border: 1px solid var(--border);
-  transition: border-color 0.2s;
-}
-.admin-user-row:hover { border-color: var(--border2); }
-.admin-user-row.banned { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
-.admin-user-info { display: flex; align-items: center; gap: 10px; }
-.admin-user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.admin-user-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; }
-.admin-user-status { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text3); }
-.admin-user-actions { display: flex; gap: 6px; }
-.btn-admin-action {
-  padding: 5px 12px; border-radius: 3px; cursor: pointer; border: 1px solid;
-  font-family: 'Orbitron', monospace; font-size: 9px; font-weight: 700;
-  letter-spacing: 1px; transition: all 0.2s;
-}
-.btn-admin-action.ban { border-color: var(--orange); color: var(--orange); background: transparent; }
-.btn-admin-action.ban:hover { background: var(--orange); color: #000; }
-.btn-admin-action.unban { border-color: var(--green); color: var(--green); background: transparent; }
-.btn-admin-action.unban:hover { background: var(--green); color: #000; }
-.btn-admin-action.delete { border-color: var(--red); color: var(--red); background: transparent; }
-.btn-admin-action.delete:hover { background: var(--red); color: #fff; }
-
-/* ── NOTIFICATIONS ── */
-#notif-container {
-  position: fixed; bottom: 20px; right: 20px; z-index: 900;
-  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-}
+/* Notifications */
+#notif-container { position:fixed; bottom:20px; right:20px; z-index:900; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
 .notif {
-  background: var(--bg3); border-radius: 4px; padding: 12px 16px;
-  display: flex; align-items: center; gap: 10px;
-  font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
-  min-width: 280px; max-width: 360px;
-  animation: notifIn 0.3s ease;
-  border-left: 3px solid var(--accent);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-  pointer-events: all;
+  background:var(--bg3); border-radius:4px; padding:12px 16px;
+  display:flex; align-items:center; gap:10px;
+  font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600;
+  min-width:280px; max-width:360px;
+  animation:notifIn .3s ease; border-left:3px solid var(--accent);
+  box-shadow:0 4px 20px rgba(0,0,0,.4); pointer-events:all;
 }
-.notif-icon { font-size: 16px; flex-shrink: 0; }
-.notif-info { border-left-color: var(--accent); }
-.notif-success { border-left-color: var(--green); }
-.notif-warn { border-left-color: var(--yellow); }
-.notif-panic { border-left-color: var(--red); background: rgba(239,68,68,0.12); }
-.notif-dispatch { border-left-color: var(--blue); }
-.notif.hide { animation: notifOut 0.3s ease forwards; }
-@keyframes notifIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes notifOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
+.notif-icon { font-size:16px; flex-shrink:0; }
+.notif-info     { border-left-color:var(--accent); }
+.notif-success  { border-left-color:var(--green); }
+.notif-warn     { border-left-color:var(--yellow); }
+.notif-panic    { border-left-color:var(--red); background:rgba(239,68,68,.12); }
+.notif-dispatch { border-left-color:var(--blue); }
+.notif.hide { animation:notifOut .3s ease forwards; }
+@keyframes notifIn  { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+@keyframes notifOut { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(20px)} }
 
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
-
-/* ── SIDEBAR TOGGLE BTN (mobile only, hidden on desktop) ── */
-.sidebar-toggle-btn { display: none; }
-
-/* ── RESPONSIVE TABLETTE ── */
-@media (max-width: 900px) {
-  .app-layout { grid-template-columns: 1fr; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--border); padding: 0; }
-  .sidebar-inner { padding: 16px; display: none; flex-direction: column; gap: 16px; }
-  .sidebar-inner.open { display: flex; }
+/* ══════════════════════════════════════════════════════
+   RESPONSIVE TABLETTE ≤900px
+══════════════════════════════════════════════════════ */
+@media (max-width:900px) {
+  .app-layout { grid-template-columns:1fr; }
+  .sidebar { border-right:none; border-bottom:1px solid var(--border); padding:0; }
+  .sidebar-inner { padding:16px; display:none; flex-direction:column; gap:16px; }
+  .sidebar-inner.open { display:flex; }
   .sidebar-toggle-btn {
-    display: flex; align-items: center; justify-content: space-between;
-    width: 100%; padding: 12px 16px;
-    background: var(--bg3); border: none;
-    border-bottom: 1px solid var(--border);
-    color: var(--accent); cursor: pointer;
-    font-family: 'Orbitron', monospace; font-size: 11px;
-    font-weight: 700; letter-spacing: 2px;
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    padding:12px 16px; background:var(--bg3); border:none;
+    border-bottom:1px solid var(--border); color:var(--accent); cursor:pointer;
+    font-family:'Orbitron',monospace; font-size:11px; font-weight:700; letter-spacing:2px;
   }
-  .sidebar-toggle-btn .toggle-arrow { transition: transform 0.2s; font-size: 14px; }
-  .sidebar-toggle-btn.open .toggle-arrow { transform: rotate(180deg); }
-  .modal-grid { grid-template-columns: 1fr; }
-  .modal-card { width: 96vw; }
-  .topbar-logo { font-size: 13px; }
-  .topbar-tn { display: none; }
+  .sidebar-toggle-btn .toggle-arrow { transition:transform .2s; font-size:14px; }
+  .sidebar-toggle-btn.open .toggle-arrow { transform:rotate(180deg); }
+  .modal-grid { grid-template-columns:1fr; }
+  .modal-card { width:96vw; }
+  .topbar-logo { font-size:13px; }
+  .topbar-tn, .topbar-service { display:none; }
+  .services-grid { grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); }
 }
 
-/* ── RESPONSIVE MOBILE ── */
-@media (max-width: 600px) {
-
-  /* Topbar */
-  .topbar {
-    height: auto; flex-wrap: wrap;
-    padding: 8px 12px; gap: 6px;
-  }
-  .topbar-logo { font-size: 13px; letter-spacing: 1px; flex: 1; }
-  .topbar-logo svg { width: 22px !important; height: 26px !important; margin-right: 6px !important; }
-  .topbar-user { font-size: 11px; order: 3; width: 100%; padding-bottom: 2px; }
-  .topbar-sep { display: none; }
-  .btn-topbar { padding: 6px 10px; font-size: 9px; letter-spacing: 0; }
-  #dispatch-btn, #panic-btn { flex: 1; text-align: center; }
+/* ══════════════════════════════════════════════════════
+   RESPONSIVE MOBILE ≤600px
+══════════════════════════════════════════════════════ */
+@media (max-width:600px) {
+  .topbar { height:auto; flex-wrap:wrap; padding:8px 12px; gap:6px; }
+  .topbar-logo { font-size:13px; letter-spacing:1px; flex:1; }
+  .topbar-logo svg { width:22px !important; height:26px !important; margin-right:6px !important; }
+  .topbar-user { font-size:11px; order:3; width:100%; padding-bottom:2px; }
+  .topbar-sep { display:none; }
+  .btn-topbar { padding:6px 9px; font-size:9px; letter-spacing:0; }
+  #topbar-dispatch-btn, #topbar-panic-btn { flex:1; text-align:center; }
 
   /* Auth */
-  .auth-card { width: 94vw; padding: 24px 16px; margin: 0; }
-  .auth-logo h1 { font-size: 18px; letter-spacing: 2px; }
-  .logo-svg { width: 54px !important; height: 62px !important; }
+  .auth-card { width:94vw; padding:24px 16px; }
+  .auth-logo h1 { font-size:18px; letter-spacing:2px; }
+  .logo-shield svg { width:54px !important; height:62px !important; }
+
+  /* Select screens */
+  .select-screen { padding:24px 14px; }
+  .select-header h2 { font-size:16px; letter-spacing:2px; }
+  .server-card { padding:14px; }
+  .server-card-name { font-size:14px; }
+  .services-grid { grid-template-columns:1fr 1fr; gap:10px; }
+  .service-card { padding:16px 12px; }
+  .svc-icon { font-size:22px; }
+  .svc-label { font-size:11px; }
+  .svc-op, .svc-ex { font-size:10px; }
 
   /* Admin panel */
-  #admin-panel { padding: 12px; margin: 0 12px 12px; }
-  .admin-tabs { gap: 4px; }
-  .admin-tab { padding: 6px 10px; font-size: 9px; }
-  .annonce-form { flex-direction: column; gap: 8px; }
-  .annonce-form input { width: 100%; }
-  .admin-user-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; }
-  .admin-user-actions { width: 100%; justify-content: stretch; gap: 6px; }
-  .btn-admin-action { flex: 1; text-align: center; padding: 7px 6px; }
+  #admin-panel, #owner-panel-inline { padding:12px; margin:0; }
+  .admin-tabs { gap:4px; }
+  .admin-tab { padding:6px 10px; font-size:9px; }
+  .annonce-form { flex-direction:column; gap:8px; }
+  .admin-user-row { flex-direction:column; align-items:flex-start; gap:8px; padding:10px; }
+  .admin-user-actions { width:100%; }
+  .btn-admin-action { flex:1; text-align:center; padding:7px 6px; }
+  .create-server-form { flex-direction:column; }
 
-  /* Main content */
-  .main-content { padding: 12px; }
-  .page-header { flex-wrap: wrap; gap: 8px; }
-  .page-title { font-size: 15px; }
-  .btn-new { margin-left: 0; width: 100%; padding: 11px; font-size: 11px; }
+  /* Main */
+  .main-content { padding:12px; }
+  .panel-row { padding:10px 12px 0; }
+  .page-header { gap:8px; }
+  .page-title { font-size:15px; }
+  .btn-new { margin-left:0; width:100%; padding:11px; font-size:11px; }
 
-  /* Tableau → cartes mobile */
-  .table-wrapper { border: none; background: transparent; box-shadow: none; overflow: visible; }
-  table { display: block; }
-  thead { display: none; }
-  tbody { display: flex; flex-direction: column; gap: 10px; }
-  tbody tr {
-    display: block;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 12px;
-    position: relative;
-  }
-  tbody tr.panic-row { border-color: rgba(239,68,68,0.5); animation: panicBlink 0.6s ease-in-out infinite; }
-  tbody td {
-    display: flex; align-items: center;
-    padding: 5px 0 !important;
-    border-bottom: none !important;
-    font-size: 13px; gap: 8px;
-  }
-  tbody td::before {
-    content: attr(data-label);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px; color: var(--text3);
-    letter-spacing: 1px; min-width: 80px;
-    text-transform: uppercase; flex-shrink: 0;
-  }
-  tbody td.actions-cell {
-    justify-content: flex-end;
-    padding-top: 10px !important;
-    margin-top: 4px;
-    border-top: 1px solid var(--border) !important;
-  }
-  tbody td.actions-cell::before { display: none; }
-  .empty-row { display: block !important; text-align: center; padding: 30px 0 !important; }
-  .empty-row::before { display: none; }
+  /* Table → cards */
+  .table-wrapper { border:none; background:transparent; overflow:visible; }
+  table { display:block; }
+  thead { display:none; }
+  tbody { display:flex; flex-direction:column; gap:10px; }
+  tbody tr { display:block; background:var(--bg2); border:1px solid var(--border); border-radius:4px; padding:12px; }
+  tbody tr.panic-row { border-color:rgba(239,68,68,.5); animation:panicBlink .6s ease-in-out infinite; }
+  tbody td { display:flex; align-items:center; padding:5px 0 !important; border-bottom:none !important; font-size:13px; gap:8px; }
+  tbody td::before { content:attr(data-label); font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text3); letter-spacing:1px; min-width:76px; text-transform:uppercase; flex-shrink:0; }
+  tbody td.actions-cell { justify-content:flex-end; padding-top:10px !important; margin-top:4px; border-top:1px solid var(--border) !important; }
+  tbody td.actions-cell::before { display:none; }
+  .empty-row { display:block !important; text-align:center; padding:30px 0 !important; }
+  .empty-row::before { display:none; }
+  .statut-select { flex:1; font-size:12px; padding:4px 6px; }
 
-  /* Statut select mobile */
-  .statut-select { flex: 1; font-size: 12px; padding: 4px 6px; }
+  /* Modal slide-up */
+  .modal-overlay { align-items:flex-end; padding:0; }
+  .modal-card { width:100%; max-height:92dvh; border-radius:12px 12px 0 0; }
+  .modal-card::before { border-radius:12px 12px 0 0; }
+  .modal-body { padding:14px 16px; }
+  .modal-header { padding:14px 16px 10px; }
+  .modal-footer { padding:12px 16px; flex-direction:column; gap:8px; }
+  .btn-modal { width:100%; padding:12px; text-align:center; }
 
-  /* Modal slide-up sur mobile */
-  .modal-overlay { align-items: flex-end; padding: 0; }
-  .modal-card {
-    width: 100%; max-height: 92dvh;
-    border-radius: 12px 12px 0 0;
-    overflow-y: auto;
-  }
-  .modal-card::before { border-radius: 12px 12px 0 0; }
-  .modal-body { padding: 14px 16px; }
-  .modal-header { padding: 14px 16px 10px; }
-  .modal-footer { padding: 12px 16px; flex-direction: column; gap: 8px; }
-  .btn-modal { width: 100%; padding: 12px; text-align: center; }
-
-  /* Notifications */
-  #notif-container { bottom: 10px; right: 10px; left: 10px; }
-  .notif { min-width: unset; max-width: 100%; font-size: 13px; }
-
-  /* Annonce banner */
-  #annonce-banner { font-size: 11px; padding: 10px 12px; letter-spacing: 1px; }
+  /* Notifs */
+  #notif-container { bottom:10px; right:10px; left:10px; }
+  .notif { min-width:unset; max-width:100%; font-size:13px; }
+  #annonce-banner { font-size:11px; padding:10px 12px; letter-spacing:1px; }
 }
 </style>
 </head>
 <body>
 
 <!-- ══ ANNONCE BANNER ══ -->
-<div id="annonce-banner" class="hidden">
-  <span id="annonce-text"></span>
-</div>
+<div id="annonce-banner" class="hidden"><span id="annonce-text"></span></div>
 
-<!-- ══ AUTH SCREEN ══ -->
-<div id="auth-screen">
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 1 — AUTH
+══════════════════════════════════════════════════════ -->
+<div id="screen-auth" class="screen">
   <div class="auth-card">
     <div class="auth-logo">
-      <div class="logo-wrapper">
-        <svg class="logo-svg" viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg">
+      <div class="logo-shield">
+        <svg viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1"/>
-              <stop offset="100%" style="stop-color:#0066aa;stop-opacity:1"/>
+            <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#00d4ff"/><stop offset="100%" style="stop-color:#0066aa"/>
             </linearGradient>
           </defs>
-          <path d="M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z" fill="none" stroke="url(#shieldGrad)" stroke-width="2.5" filter="url(#glow)"/>
+          <path d="M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z" fill="none" stroke="url(#sg)" stroke-width="2.5" filter="url(#glow)"/>
           <path d="M40 10 L68 22 L68 46 C68 62 40 80 40 80 C40 80 12 62 12 46 L12 22 Z" fill="rgba(0,100,160,0.18)"/>
-          <path d="M40 10 L68 22 L68 46 C68 62 40 80 40 80 C40 80 12 62 12 46 L12 22 Z" fill="none" stroke="rgba(0,212,255,0.25)" stroke-width="1"/>
-          <g transform="translate(18, 20)" filter="url(#glow)">
+          <g transform="translate(18,20)" filter="url(#glow)">
             <path d="M10 2 C7.5 2 5.5 4 5.5 6.5 L5.5 29.5 C5.5 32 7.5 34 10 34 L26 34 C28.5 34 30.5 32 30.5 29.5 L30.5 6.5 C30.5 4 28.5 2 26 2 Z" fill="none" stroke="#00d4ff" stroke-width="2"/>
             <rect x="13" y="5" width="10" height="2" rx="1" fill="#00d4ff" opacity="0.6"/>
             <circle cx="18" cy="30.5" r="1.5" fill="#00d4ff" opacity="0.8"/>
@@ -1278,138 +1256,169 @@ select.form-input { appearance: none; cursor: pointer; }
           </g>
         </svg>
       </div>
-      <h1>PATROL OPS</h1>
-      <p>CENTRE OPÉRATIONNEL — ACCÈS SÉCURISÉ</p>
+      <h1>PATROL MANAGER</h1>
+      <p>ACCÈS SÉCURISÉ — CENTRE OPÉRATIONNEL</p>
     </div>
     <div class="auth-tabs">
       <div class="auth-tab active" onclick="switchAuthTab('login')">CONNEXION</div>
       <div class="auth-tab" onclick="switchAuthTab('register')">INSCRIPTION</div>
     </div>
-    <!-- LOGIN -->
     <div id="auth-login" class="auth-pane active">
-      <div class="form-group">
-        <label class="form-label">Identifiant</label>
-        <input id="login-id" class="form-input" type="text" placeholder="votre_identifiant" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Mot de passe</label>
-        <input id="login-pw" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password">
-      </div>
+      <div class="form-group"><label class="form-label">Identifiant</label><input id="login-id" class="form-input" type="text" placeholder="votre_identifiant" autocomplete="username"></div>
+      <div class="form-group"><label class="form-label">Mot de passe</label><input id="login-pw" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn-primary" onclick="doLogin()">SE CONNECTER</button>
       <div id="login-error" class="form-error"></div>
     </div>
-    <!-- REGISTER -->
     <div id="auth-register" class="auth-pane">
-      <div class="form-group">
-        <label class="form-label">Identifiant</label>
-        <input id="reg-id" class="form-input" type="text" placeholder="votre_identifiant" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Mot de passe</label>
-        <input id="reg-pw" class="form-input" type="password" placeholder="min. 6 caractères" autocomplete="new-password">
-      </div>
+      <div class="form-group"><label class="form-label">Identifiant</label><input id="reg-id" class="form-input" type="text" placeholder="votre_identifiant" autocomplete="username"></div>
+      <div class="form-group"><label class="form-label">Mot de passe</label><input id="reg-pw" class="form-input" type="password" placeholder="min. 6 caractères" autocomplete="new-password"></div>
       <button class="btn-primary" onclick="doRegister()">CRÉER LE COMPTE</button>
       <div id="reg-error" class="form-error"></div>
     </div>
   </div>
 </div>
 
-<!-- ══ MAIN APP ══ -->
-<div id="main-app" class="hidden">
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 2 — LISTE DES SERVEURS
+══════════════════════════════════════════════════════ -->
+<div id="screen-servers" class="screen hidden">
+  <div class="select-screen">
+    <div class="select-header">
+      <div class="logo-shield">
+        <svg viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg" style="width:48px;height:54px;animation:logoFloat 4s ease-in-out infinite">
+          <defs><filter id="g2"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="sg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#00d4ff"/><stop offset="100%" style="stop-color:#0066aa"/></linearGradient></defs>
+          <path d="M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z" fill="none" stroke="url(#sg2)" stroke-width="2.5" filter="url(#g2)"/>
+          <path d="M40 10 L68 22 L68 46 C68 62 40 80 40 80 C40 80 12 62 12 46 L12 22 Z" fill="rgba(0,100,160,0.18)"/>
+          <g transform="translate(18,20)" filter="url(#g2)"><path d="M10 2 C7.5 2 5.5 4 5.5 6.5 L5.5 29.5 C5.5 32 7.5 34 10 34 L26 34 C28.5 34 30.5 32 30.5 29.5 L30.5 6.5 C30.5 4 28.5 2 26 2 Z" fill="none" stroke="#00d4ff" stroke-width="2"/><rect x="13" y="5" width="10" height="2" rx="1" fill="#00d4ff" opacity="0.6"/><circle cx="18" cy="30.5" r="1.5" fill="#00d4ff" opacity="0.8"/><path d="M33 10 C36 13 36 18 33 21" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/></g>
+        </svg>
+      </div>
+      <h2>PATROL MANAGER</h2>
+      <p>SÉLECTIONNEZ VOTRE SERVEUR</p>
+    </div>
+
+    <div class="server-list" id="server-list"></div>
+
+    <!-- Owner panel -->
+    <div id="owner-panel" class="owner-create-box hidden" style="max-width:720px;width:100%">
+      <h3>👑 CRÉER UN SERVEUR</h3>
+      <div class="create-server-form">
+        <input id="server-name" type="text" placeholder="Nom du serveur RP…">
+        <select id="server-type">
+          <option value="FA">🔓 Free Access (FA)</option>
+          <option value="WL">🔒 WhiteList (WL)</option>
+        </select>
+        <button class="btn-create" onclick="createServer()">+ CRÉER</button>
+      </div>
+    </div>
+
+    <div style="margin-top:20px">
+      <button class="btn-back" onclick="doLogout()">⏻ Déconnexion</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 3 — LISTE DES SERVICES
+══════════════════════════════════════════════════════ -->
+<div id="screen-services" class="screen hidden">
+  <div class="select-screen">
+    <div class="select-header">
+      <h2>CHOISIR UN SERVICE</h2>
+      <p>SERVEUR : <span id="breadcrumb-server" style="color:var(--accent)">—</span></p>
+    </div>
+    <button class="btn-back" onclick="goBackToServers()">← Retour aux serveurs</button>
+    <div class="services-grid" id="services-grid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 4 — PANEL OPÉRATIONNEL
+══════════════════════════════════════════════════════ -->
+<div id="screen-panel" class="screen hidden">
 
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-logo">
-      <svg class="topbar-logo-svg" viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg" width="28" height="32" style="display:inline-block;vertical-align:middle;margin-right:10px;flex-shrink:0;">
-        <defs>
-          <filter id="glow2"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          <linearGradient id="sg2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#00d4ff"/>
-            <stop offset="100%" style="stop-color:#0066aa"/>
-          </linearGradient>
-        </defs>
-        <path d="M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z" fill="none" stroke="url(#sg2)" stroke-width="2.5" filter="url(#glow2)"/>
+      <svg viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg" width="28" height="32">
+        <defs><filter id="g3"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="sg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#00d4ff"/><stop offset="100%" style="stop-color:#0066aa"/></linearGradient></defs>
+        <path d="M40 4 L74 18 L74 46 C74 65 40 86 40 86 C40 86 6 65 6 46 L6 18 Z" fill="none" stroke="url(#sg3)" stroke-width="2.5" filter="url(#g3)"/>
         <path d="M40 10 L68 22 L68 46 C68 62 40 80 40 80 C40 80 12 62 12 46 L12 22 Z" fill="rgba(0,100,160,0.2)"/>
-        <g transform="translate(18, 20)" filter="url(#glow2)">
-          <path d="M10 2 C7.5 2 5.5 4 5.5 6.5 L5.5 29.5 C5.5 32 7.5 34 10 34 L26 34 C28.5 34 30.5 32 30.5 29.5 L30.5 6.5 C30.5 4 28.5 2 26 2 Z" fill="none" stroke="#00d4ff" stroke-width="2"/>
-          <rect x="13" y="5" width="10" height="2" rx="1" fill="#00d4ff" opacity="0.6"/>
-          <circle cx="18" cy="30.5" r="1.5" fill="#00d4ff" opacity="0.8"/>
-          <path d="M33 10 C36 13 36 18 33 21" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-          <path d="M35.5 7.5 C40 12 40 19 35.5 23.5" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-        </g>
+        <g transform="translate(18,20)" filter="url(#g3)"><path d="M10 2 C7.5 2 5.5 4 5.5 6.5 L5.5 29.5 C5.5 32 7.5 34 10 34 L26 34 C28.5 34 30.5 32 30.5 29.5 L30.5 6.5 C30.5 4 28.5 2 26 2 Z" fill="none" stroke="#00d4ff" stroke-width="2"/><rect x="13" y="5" width="10" height="2" rx="1" fill="#00d4ff" opacity="0.6"/><circle cx="18" cy="30.5" r="1.5" fill="#00d4ff" opacity="0.8"/><path d="M33 10 C36 13 36 18 33 21" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/></g>
       </svg>
-      PATROL OPS
+      PATROL MANAGER
     </div>
-    <div class="topbar-tn">TRANSMISSION NATIONALE: <strong id="tn-display">—</strong></div>
+    <div class="topbar-service" id="topbar-service-icon">—</div>
+    <div class="topbar-tn"><span id="operateur-label">Opérateur:</span> <strong id="tn-display">—</strong></div>
     <div class="topbar-sep"></div>
     <div class="topbar-user" id="current-user-name"></div>
-    <button class="btn-topbar btn-dispatch hidden" id="dispatch-btn" onclick="doDispatch()">📡 DISPATCH</button>
-    <button class="btn-topbar btn-panic hidden" id="panic-btn" onclick="doGlobalPanic()">🚨 PANIC</button>
-    <button class="btn-topbar btn-admin hidden" id="admin-panel-btn" onclick="toggleAdminPanel()">⚙ ADMIN</button>
-    <button class="btn-topbar btn-logout" onclick="doLogout()">DÉCONNEXION</button>
+    <button class="btn-topbar btn-dispatch" id="topbar-dispatch-btn" onclick="doDispatch()">📡 DISPATCH</button>
+    <button class="btn-topbar btn-panic"    id="topbar-panic-btn"    onclick="doGlobalPanic()">🚨 PANIC</button>
+    <button class="btn-topbar btn-admin hidden" id="topbar-admin-btn" onclick="toggleAdminPanel()">⚙ ADMIN</button>
+    <button class="btn-topbar btn-owner hidden" id="topbar-owner-btn" onclick="toggleOwnerPanel()">👑 GÉRANT</button>
+    <button class="btn-topbar btn-back-topbar" onclick="goBackToServices()">← Services</button>
+    <button class="btn-topbar btn-logout"   onclick="doLogout()">⏻</button>
   </div>
 
-  <!-- ADMIN PANEL -->
-  <div style="padding: 0 20px;">
-    <div id="admin-panel" class="hidden">
+  <!-- PANELS ROW -->
+  <div class="panel-row">
+    <!-- Admin panel -->
+    <div id="admin-panel" class="panel-box hidden">
       <div class="admin-tabs">
-        <button class="admin-tab active" onclick="switchAdminTab('annonce', this)">📢 ANNONCES</button>
-        <button class="admin-tab" onclick="switchAdminTab('membres', this)">👥 GESTION MEMBRES</button>
+        <button class="admin-tab active" onclick="switchAdminTab('annonce',this)">📢 ANNONCES</button>
+        <button class="admin-tab" onclick="switchAdminTab('membres',this)">👥 MEMBRES</button>
       </div>
-
-      <!-- Onglet Annonces -->
       <div id="admin-tab-annonce" class="admin-tab-pane">
         <div class="annonce-form">
           <input id="annonce-msg" type="text" placeholder="Message d'annonce globale…">
-          <button class="btn-annonce" onclick="sendAnnonce()">📢 ENVOYER</button>
+          <button class="btn-send" onclick="sendAnnonce()">📢 ENVOYER</button>
         </div>
       </div>
-
-      <!-- Onglet Membres -->
       <div id="admin-tab-membres" class="admin-tab-pane hidden">
-        <div style="margin-bottom:10px; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text3);">
-          🚫 SUSPENDRE bloque la reconnexion — 🗑 SUPPRIMER efface le compte définitivement
-        </div>
+        <div style="margin-bottom:10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text3)">🚫 SUSPENDRE bloque la reconnexion — 🗑 SUPPRIMER efface définitivement</div>
         <div id="admin-user-list"></div>
+      </div>
+    </div>
+
+    <!-- Owner panel inline -->
+    <div id="owner-panel-inline" class="panel-box hidden">
+      <div class="create-server-form">
+        <input id="server-name-inline" type="text" placeholder="Nom du serveur RP…">
+        <select id="server-type-inline">
+          <option value="FA">🔓 Free Access</option>
+          <option value="WL">🔒 WhiteList</option>
+        </select>
+        <button class="btn-create" onclick="createServerInline()">+ CRÉER</button>
       </div>
     </div>
   </div>
 
   <!-- LAYOUT -->
   <div class="app-layout">
-
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()">
-        <span>👥 EFFECTIFS &amp; TRANSMISSION</span>
+        <span>👥 EFFECTIFS &amp; OPÉRATEUR</span>
         <span class="toggle-arrow">▼</span>
       </button>
       <div class="sidebar-inner" id="sidebar-inner">
-      <!-- EFFECTIFS -->
-      <div>
-        <div class="sidebar-section-title">
-          EFFECTIFS EN LIGNE <span id="effectif-count">0</span>
+        <div>
+          <div class="sidebar-section-title">EFFECTIFS EN LIGNE <span id="effectif-count">0</span></div>
+          <input class="search-input" id="effectif-search" type="text" placeholder="Rechercher…" oninput="filterEffectifs()">
+          <div id="effectif-list"></div>
+          <div style="margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3)">CTRL+Clic pour multi-sélection</div>
         </div>
-        <input class="search-input" id="effectif-search" type="text" placeholder="Rechercher…" oninput="filterEffectifs()" style="margin: 10px 0;">
-        <div id="effectif-list"></div>
-        <div style="margin-top:8px; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text3);">
-          CTRL+Clic pour multi-sélection
-        </div>
-      </div>
-
-      <!-- TN -->
-      <div>
-        <div class="sidebar-section-title">TRANSMISSION NATIONALE (TN)</div>
-        <div class="tn-box">
-          <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text3);">EN COURS</div>
-          <div class="tn-name" id="tn-display-sidebar">—</div>
-          <div class="tn-actions">
-            <button class="btn-sm green" onclick="setTN()">DÉFINIR</button>
-            <button class="btn-sm red" onclick="removeTN()">RETIRER</button>
+        <div>
+          <div class="sidebar-section-title">OPÉRATEUR (<span id="operateur-label-sidebar">TN</span>)</div>
+          <div class="tn-box">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3)">EN COURS</div>
+            <div class="tn-name" id="tn-display-sidebar">—</div>
+            <div class="tn-actions">
+              <button class="btn-sm green" onclick="setTN()">DÉFINIR</button>
+              <button class="btn-sm red" onclick="removeTN()">RETIRER</button>
+            </div>
           </div>
         </div>
       </div>
-      </div><!-- /sidebar-inner -->
     </aside>
 
     <!-- MAIN -->
@@ -1419,19 +1428,12 @@ select.form-input { appearance: none; cursor: pointer; }
         <div class="stat-chip"><span id="patrol-count">0</span> active(s)</div>
         <button class="btn-new" onclick="openPatrolModal()">+ NOUVELLE PATROUILLE</button>
       </div>
-
       <div class="table-wrapper">
         <table>
           <thead>
             <tr>
-              <th>INDICATIF</th>
-              <th>VÉHICULE</th>
-              <th>EFFECTIFS</th>
-              <th>STATUT</th>
-              <th>OPJ</th>
-              <th>ARME LONGUE</th>
-              <th>MISSION</th>
-              <th>ACTIONS</th>
+              <th>INDICATIF</th><th>VÉHICULE</th><th>EFFECTIFS</th>
+              <th>STATUT</th><th>OPJ</th><th>ARME LONGUE</th><th>MISSION</th><th>ACTIONS</th>
             </tr>
           </thead>
           <tbody id="patrol-tbody">
@@ -1454,53 +1456,20 @@ select.form-input { appearance: none; cursor: pointer; }
       <input type="hidden" id="patrol-id-edit">
       <form id="patrol-form" onsubmit="return false;">
         <div class="modal-grid">
-          <div>
-            <label>Indicatif *</label>
-            <input id="indicatif" type="text" placeholder="ex: Alpha-1">
-          </div>
-          <div>
-            <label>Véhicule</label>
-            <input id="vehicule" type="text" placeholder="ex: Cruiser">
-          </div>
-          <div>
-            <label>Mission</label>
-            <input id="mission" type="text" placeholder="ex: Patrouille secteur nord">
-          </div>
-          <div>
-            <label>Statut</label>
+          <div><label>Indicatif *</label><input id="indicatif" type="text" placeholder="ex: TV-12-A"></div>
+          <div><label>Véhicule</label><input id="vehicule" type="text" placeholder="ex: Cruiser"></div>
+          <div><label>Mission</label><input id="mission" type="text" placeholder="ex: Patrouille secteur nord"></div>
+          <div><label>Statut</label>
             <select id="statut">
-              <option>Disponible</option>
-              <option>Indisponible</option>
-              <option>Sur intervention</option>
-              <option>En procédure</option>
+              <option>Disponible</option><option>Indisponible</option>
+              <option>Sur intervention</option><option>En procédure</option>
             </select>
           </div>
-          <div>
-            <label>OPJ à bord</label>
-            <select id="opj" onchange="toggleOPJ()">
-              <option value="Non">Non</option>
-              <option value="Oui">Oui</option>
-            </select>
-          </div>
-          <div id="opj-agent-row" class="hidden">
-            <label>Agent OPJ</label>
-            <select id="opj-agent"></select>
-          </div>
-          <div>
-            <label>Arme longue à bord</label>
-            <select id="arme" onchange="toggleArme()">
-              <option value="Non">Non</option>
-              <option value="Oui">Oui</option>
-            </select>
-          </div>
-          <div id="arme-agent-row" class="hidden">
-            <label>Agent porteur</label>
-            <select id="arme-agent"></select>
-          </div>
-          <div class="full-width">
-            <label>Effectifs assignés (CTRL+Clic multi)</label>
-            <select id="effectifs-select" multiple></select>
-          </div>
+          <div><label>OPJ à bord</label><select id="opj" onchange="toggleOPJ()"><option value="Non">Non</option><option value="Oui">Oui</option></select></div>
+          <div id="opj-agent-row" class="hidden"><label>Agent OPJ</label><select id="opj-agent"></select></div>
+          <div><label>Arme longue à bord</label><select id="arme" onchange="toggleArme()"><option value="Non">Non</option><option value="Oui">Oui</option></select></div>
+          <div id="arme-agent-row" class="hidden"><label>Agent porteur</label><select id="arme-agent"></select></div>
+          <div class="full-width"><label>Effectifs assignés (CTRL+Clic multi)</label><select id="effectifs-select" multiple></select></div>
         </div>
       </form>
     </div>
@@ -1515,36 +1484,28 @@ select.form-input { appearance: none; cursor: pointer; }
 <div id="notif-container"></div>
 
 <script>
-function switchAuthTab(tab) {
-  document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'login' ? 0 : 1)));
-  document.getElementById('auth-login').classList.toggle('active', tab === 'login');
-  document.getElementById('auth-register').classList.toggle('active', tab === 'register');
+// Sync TN label sidebar
+function syncTNLabel() {
+  const lbl = document.getElementById('operateur-label')?.textContent?.replace(':','') || 'TN';
+  const s = document.getElementById('operateur-label-sidebar');
+  if (s) s.textContent = lbl;
 }
+const obs = new MutationObserver(syncTNLabel);
+const tnEl = document.getElementById('tn-display');
+if (tnEl) obs.observe(tnEl, {childList:true,subtree:true,characterData:true});
 
-function toggleSidebar() {
-  const inner = document.getElementById('sidebar-inner');
-  const btn = document.getElementById('sidebar-toggle-btn');
-  inner.classList.toggle('open');
-  btn.classList.toggle('open');
-}
-// Sync TN sidebar display
-const obs = new MutationObserver(() => {
-  const v = document.getElementById('tn-display').textContent;
-  document.getElementById('tn-display-sidebar').textContent = v;
-});
-obs.observe(document.getElementById('tn-display'), { childList: true, subtree: true, characterData: true });
-
-window.doGlobalPanic = function() {
-  // Show notif + play panic without targeting a specific patrol
-  if (typeof playPanic === 'function') playPanic();
-  if (typeof showNotif === 'function') showNotif('🚨 PANIC GLOBAL DÉCLENCHÉ', 'panic', false);
+// Owner create server from inline panel (topbar)
+window.createServerInline = async function() {
+  const name = document.getElementById('server-name-inline').value.trim();
+  const type = document.getElementById('server-type-inline').value;
+  if (!name) { showNotif('Nom requis.','warn'); return; }
+  // delegate to the module-scoped function exposed on window
+  if (window._pushServer) {
+    await window._pushServer(name, type);
+    document.getElementById('server-name-inline').value='';
+    showNotif(`Serveur "${name}" créé.`,'success','notif');
+  }
 };
 </script>
-
-<!-- CONFIG NOTICE -->
-<div style="display:none" id="config-notice">
-  ⚠️ Pensez à remplacer les valeurs Firebase dans firebaseConfig !
-</div>
-
 </body>
 </html>
